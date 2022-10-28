@@ -15,7 +15,7 @@ NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
 ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
 
 def get_new_data():
-    stock_symbol = 'IBM'
+    stock_symbol = 'FXAIX'
 
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={stock_symbol}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
 
@@ -169,10 +169,26 @@ def preprocess_testdat(data, scaler, window_size, test):
     return x_test
 
 
+def plot_stock_trend_lstm(train, test, logNeptune=True):
+    fig = plt.figure(figsize=(20,10))
+    plt.plot(train['timestamp'], train['close'], label='Train Closing Price')
+    plt.plot(test['timestamp'], test['close'], label='Test Closing Price')
+    plt.plot(test['timestamp'], test['Predictions_lstm'], label='Predicted Closing Price')
+    plt.title('LSTM Model')
+    plt.xlabel('Date')
+    plt.ylabel('Stock Price ($)')
+    plt.legend(loc='upper left')
+
+    if logNeptune:
+        run['LSTM/LSTM Prediction Model'].upload(neptune.types.File.as_image(fig))
+
+
+
 if __name__ == '__main__':
     # get closing price for each day
     # get_new_data()
-    data = read_data()
+    data = read_data()[:500]
+    print(data)
     # reverses pandas data
     # data = data.iloc[::-1]
 
@@ -195,21 +211,23 @@ if __name__ == '__main__':
     )
 
     # changes data to have correct indexes for time
-    data = data.loc[::-1].reset_index(drop=True)
+    newData = data.copy().loc[::-1].reset_index(drop=True)
+    train = newData[:train_size]
+    test = newData[train_size:]
 
-    simple_moving_average(50, stockprices=data)
-    exponential_moving_average(50, stockprices=data)
+    simple_moving_average(50, stockprices=newData)
+    exponential_moving_average(50, stockprices=newData)
 
     cur_epochs = 15
     cur_batch_size = 20
     window_size = 50
     scaler = StandardScaler()
 
-    x_train, y_train = lstm_get_train_data(data, scaler, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size)
+    x_train, y_train = lstm_get_train_data(newData, scaler, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size)
     model = run_lstm(x_train, NeptuneProject=run)
     history = model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=1, validation_split=0.1, shuffle=True)
 
-    x_test = preprocess_testdat(data=data, scaler=scaler, window_size=window_size, test=test)
+    x_test = preprocess_testdat(data=newData, scaler=scaler, window_size=window_size, test=test)
     predicted_price_ = model.predict(x_test)
     predicted_price = scaler.inverse_transform(predicted_price_)
     test['Predictions_lstm'] = predicted_price
@@ -217,7 +235,9 @@ if __name__ == '__main__':
     rmse_lstm = calculate_rmse(np.array(test['close']), np.array(test['Predictions_lstm']))
     mape_lstm = calculate_mape(np.array(test['close']), np.array(test['Predictions_lstm']))
 
-    run['LSTS/RMSE'].log(rmse_lstm)
+    run['LSTM/RMSE'].log(rmse_lstm)
     run['LSTM/MAPE (%)'].log(mape_lstm)
+
+    plot_stock_trend_lstm(train, test)
 
     run.stop()
