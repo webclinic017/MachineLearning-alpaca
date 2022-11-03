@@ -6,7 +6,9 @@ import csv
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+import warnings
 import neptune.new as neptune
+import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from tensorflow.python.keras import Input, Model
@@ -16,9 +18,11 @@ load_dotenv()
 NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
 ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
 
-class Stock():
 
-    def __init__(self, ticker, run, test_ratio=0.2, dataset_size=500):
+class Stock:
+
+    def __init__(self, ticker, run, test_ratio=0.2, dataset_size=200, test_lstm=False):
+        self.test_lstm = test_lstm
         self.dataset_size = dataset_size
         self.run = run
         self.ticker = ticker
@@ -31,13 +35,14 @@ class Stock():
         self.train = self.data[:self.train_size]
         self.test = self.data[self.train_size:]
 
-        self.begin()
+        if not test_lstm:
+            self.begin()
 
     def begin(self):
-        stockprices = self.extract_seqX_outcomeY(self.train['close'], 50, 60)
-        X = stockprices[0]
-        Y = stockprices[1].reshape((len(stockprices[1]), 1))
-        stockprices = (X, Y)
+        # stockprices = self.extract_seqX_outcomeY(self.train['close'], 50, 60)
+        # X = stockprices[0]
+        # Y = stockprices[1].reshape((len(stockprices[1]), 1))
+        # stockprices = (X, Y)
 
         self.simple_moving_average(50, stockprices=self.flippedData)
         self.exponential_moving_average(50, stockprices=self.flippedData)
@@ -46,6 +51,31 @@ class Stock():
         self.test = self.flippedData[self.train_size:]
 
         self.handle_lstm()
+
+    def begin_lstm(self, lstm_pars):
+        self.train = self.flippedData[:self.train_size]
+        self.test = self.flippedData[self.train_size:]
+
+        cur_epochs = lstm_pars['cur_epochs']
+        cur_batch_size = lstm_pars['cur_batch_size']
+        window_size = lstm_pars['window_size']
+        layer_units = lstm_pars['layer_units']
+        scaler = StandardScaler()
+
+        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
+                                                    cur_epochs=cur_epochs, window_size=window_size)
+        model = self.run_lstm(x_train, layer_units=layer_units, logNeptune=False)
+        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1,
+                  shuffle=True)
+
+        x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
+        predicted_price_ = model.predict(x_test)
+        predicted_price = scaler.inverse_transform(predicted_price_)
+        self.test['Predictions_lstm'] = predicted_price
+
+        mape_lstm = self.calculate_mape(np.array(self.test['close']), np.array(self.test['Predictions_lstm']))
+
+        return mape_lstm
 
     def get_new_data(self):
         url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
@@ -94,7 +124,7 @@ class Stock():
         X, y = [], []
 
         for i in range(offset, len(data)):
-            X.append(data[i-N:i])
+            X.append(data[i - N:i])
             y.append(data[i])
 
         return np.array(X), np.array(y)
@@ -113,9 +143,11 @@ class Stock():
         return mape
 
     def calculate_perf_metrics(self, var, stockprices, logNeptune=True, logmodelName='Simple MA', pathName=''):
-        rmse = self.calculate_rmse(np.array(stockprices[self.train_size:]['close']), np.array(stockprices[self.train_size:][var]))
+        rmse = self.calculate_rmse(np.array(stockprices[self.train_size:]['close']),
+                                   np.array(stockprices[self.train_size:][var]))
 
-        mape = self.calculate_mape(np.array(stockprices[self.train_size:]['close']), np.array(stockprices[self.train_size:][var]))
+        mape = self.calculate_mape(np.array(stockprices[self.train_size:]['close']),
+                                   np.array(stockprices[self.train_size:][var]))
 
         if logNeptune:
             self.run[f"{self.ticker}/{pathName}/RMSE"].log(rmse)
@@ -133,7 +165,8 @@ class Stock():
         # plt.show()
         # Log images to Neptune new version
         if logNeptune:
-            self.run[f'{self.ticker}/{pathName}Plot of Stock Predictions with {logmodelName}'].upload(neptune.types.File.as_image(ax.get_figure()))
+            self.run[f'{self.ticker}/{pathName}Plot of Stock Predictions with {logmodelName}'].upload(
+                neptune.types.File.as_image(ax.get_figure()))
 
     def simple_moving_average(self, window_size, stockprices):
 
@@ -142,7 +175,8 @@ class Stock():
         stockprices[window_var] = stockprices[['close']].rolling(window_size).mean()
         stockprices['200day'] = stockprices[['close']].rolling(200).mean()
 
-        self.plot_stock_trend(var=window_var, cur_title='Simple Moving Averages', stockprices=stockprices, logmodelName='Simple MA', pathName='SMA')
+        self.plot_stock_trend(var=window_var, cur_title='Simple Moving Averages', stockprices=stockprices,
+                              logmodelName='Simple MA', pathName='SMA')
 
         self.calculate_perf_metrics(var=window_var, stockprices=stockprices, logmodelName='Simple MA', pathName='SMA')
 
@@ -152,7 +186,8 @@ class Stock():
         stockprices[window_var] = stockprices['close'].ewm(span=window_size, adjust=False).mean()
         stockprices['200day'] = stockprices['close'].rolling(200).mean()
 
-        self.plot_stock_trend(var=window_var, cur_title='Exponential Moving Averages', stockprices=stockprices, logmodelName='Exp MA', pathName='EMA')
+        self.plot_stock_trend(var=window_var, cur_title='Exponential Moving Averages', stockprices=stockprices,
+                              logmodelName='Exp MA', pathName='EMA')
         self.calculate_perf_metrics(var=window_var, stockprices=stockprices, logmodelName='Exp MA', pathName='EMA')
 
     def handle_lstm(self):
@@ -161,13 +196,13 @@ class Stock():
         window_size = 50
         scaler = StandardScaler()
 
-        x_train, y_train = self.lstm_get_train_data(self.data, scaler, cur_batch_size=cur_batch_size,
+        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
         model = self.run_lstm(x_train, NeptuneProject=self.run)
-        history = model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=1,
-                            validation_split=0.1, shuffle=True)
+        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=1, validation_split=0.1,
+                  shuffle=True)
 
-        x_test = self.preprocess_testdat(data=self.data, scaler=scaler, window_size=window_size, test=self.test)
+        x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
         predicted_price_ = model.predict(x_test)
         predicted_price = scaler.inverse_transform(predicted_price_)
         self.test['Predictions_lstm'] = predicted_price
@@ -179,15 +214,16 @@ class Stock():
         self.run[f"{self.ticker}/LSTM/MAPE (%)"].log(mape_lstm)
         self.plot_stock_trend_lstm(self.train, self.test)
 
-    def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15, cur_batch_size=20, window_size=50):
+    def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15,
+                            cur_batch_size=20, window_size=50):
 
-        cur_LSTM_pars = {'units': layer_units,
-                         'optimizer': optimizer,
-                         'batch_size': cur_batch_size,
-                         'epochs': cur_epochs
-                         }
-
-        self.run['LSTM/LSTMPars'] = cur_LSTM_pars
+        if not self.test_lstm:
+            cur_LSTM_pars = {'units': layer_units,
+                             'optimizer': optimizer,
+                             'batch_size': cur_batch_size,
+                             'epochs': cur_epochs
+                             }
+            self.run['LSTMPars'] = cur_LSTM_pars
 
         scaled_data = scaler.fit_transform(stockprices[['close']])
         scaled_data_train = scaled_data[:self.train.shape[0]]
@@ -213,13 +249,13 @@ class Stock():
 
     def preprocess_testdat(self, data, scaler, window_size, test):
         raw = data['close'][len(data) - len(test) - window_size:].values
-        raw = raw.reshape(-1,1)
+        raw = raw.reshape(-1, 1)
         raw = scaler.transform(raw)
 
         x_test = []
 
         for i in range(window_size, raw.shape[0]):
-            x_test.append(raw[i-window_size:i, 0])
+            x_test.append(raw[i - window_size:i, 0])
 
         x_test = np.array(x_test)
 
@@ -228,23 +264,28 @@ class Stock():
 
     def plot_stock_trend_lstm(self, train, test, logNeptune=True):
         fig = plt.figure(figsize=(20, 10))
-        plt.plot(train['timestamp'], train['close'], label='Train Closing Price')
-        plt.plot(test['timestamp'], test['close'], label='Test Closing Price')
-        plt.plot(test['timestamp'], test['Predictions_lstm'], label='Predicted Closing Price')
+        train_x = np.asarray(train['timestamp'], dtype='datetime64[s]')
+        test_x = np.asarray(test['timestamp'], dtype='datetime64[s]')
+        plt.plot(train_x, train['close'], label='Train Closing Price')
+        plt.plot(test_x, test['close'], label='Test Closing Price')
+        plt.plot(test_x, test['Predictions_lstm'], label='Predicted Closing Price')
         plt.title('LSTM Model')
         plt.xlabel('Date')
         plt.ylabel('Stock Price ($)')
         plt.legend(loc='upper left')
 
         if logNeptune:
-            self.run['LSTM/LSTM Prediction Model'].upload(neptune.types.File.as_image(fig))
+            self.run[f"{self.ticker}/LSTM/LSTM Prediction Model"].upload(neptune.types.File.as_image(fig))
 
 
 def start(ticker, run):
-    task = Stock(ticker, run)
+    Stock(ticker, run)
 
 
 if __name__ == '__main__':
+    pandas.options.mode.chained_assignment = None  # default='warn'
+    matplotlib.use('SVG')
+    warnings.filterwarnings(action='ignore', category=UserWarning)
 
     run = neptune.init(
         project="elitheknight/Stock-Prediction",
@@ -253,15 +294,13 @@ if __name__ == '__main__':
 
     listoftickers = ['IBM', 'FXAIX']
     threads = []
-    for ticker in listoftickers:
-        threads.append(threading.Thread(target=start, args=(ticker, run)))
+    for ticker_ in listoftickers:
+        threads.append(threading.Thread(target=start, args=(ticker_, run)))
 
     for thread in threads:
-        thread.run()
+        thread.start()
 
     for thread in threads:
         thread.join()
 
     run.stop()
-
-
