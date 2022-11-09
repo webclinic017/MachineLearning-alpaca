@@ -11,6 +11,7 @@ import neptune.new as neptune
 import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+import tensorflow as tf
 from tensorflow.python.keras import Input, Model
 from tensorflow.python.keras.layers import LSTM, Dense
 
@@ -26,7 +27,10 @@ class Stock:
         self.dataset_size = dataset_size
         self.run = run
         self.ticker = ticker
-        self.data = self.get_new_data()
+        if test_lstm:
+            self.data = self.read_data_from_file()
+        else:
+            self.data = self.get_new_data()
         self.flippedData = self.data.copy().loc[::-1].reset_index(drop=True)
         self.test_ratio = test_ratio
         self.train_ratio = 1 - test_ratio
@@ -52,7 +56,14 @@ class Stock:
 
         self.handle_lstm()
 
-    def begin_lstm(self, lstm_pars):
+    def begin_lstm(self, lstm_pars, plot=False):
+        pandas.options.mode.chained_assignment = None  # default='warn'
+        matplotlib.use('SVG')
+        warnings.filterwarnings(action='ignore', category=UserWarning)
+
+        self.simple_moving_average(50, stockprices=self.flippedData, plot=plot)
+        self.exponential_moving_average(50, stockprices=self.flippedData, plot=plot)
+
         self.train = self.flippedData[:self.train_size]
         self.test = self.flippedData[self.train_size:]
 
@@ -64,7 +75,7 @@ class Stock:
 
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
-        model = self.run_lstm(x_train, layer_units=layer_units, logNeptune=False)
+        model = self.run_lstm_tensor(x_train, layer_units=layer_units, logNeptune=False)
         model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1,
                   shuffle=True)
 
@@ -78,7 +89,7 @@ class Stock:
         return mape_lstm
 
     def get_new_data(self):
-        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
         try:
             info = pandas.read_csv(url)[:self.dataset_size]
         except Exception as e:
@@ -88,7 +99,7 @@ class Stock:
         return info
 
     def get_new_data_to_file(self):
-        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
 
         try:
             response = requests.get(url)
@@ -97,9 +108,11 @@ class Stock:
             exit(1)
 
         lines = response.text.splitlines()
+        if self.dataset_size < len(lines):
+            lines = lines[:self.dataset_size]
         reader = csv.reader(lines)
 
-        f = open(f"{self.ticker}/data.csv", 'w')
+        f = open(f"{self.ticker}_data.csv", 'w')
         csv_writer = csv.writer(f)
         for row in reader:
             csv_writer.writerow(row)
@@ -107,11 +120,12 @@ class Stock:
         f.close()
 
     def read_data_from_file(self):
-        if Path(f"{self.ticker}/data.csv").is_file():
-            return pandas.read_csv(f"{self.ticker}/data.csv")
+        if Path(f"{self.ticker}_data.csv").is_file():
+            return pandas.read_csv(f"{self.ticker}_data.csv")
         else:
-            print(f"No file: {self.ticker}/data.csv")
-            exit(1)
+            print(f"No file: {self.ticker}_data.csv, getting data")
+            self.get_new_data_to_file()
+            return pandas.read_csv(f"{self.ticker}_data.csv")
 
     def extract_seqX_outcomeY(self, data, N, offset):
         """
@@ -149,7 +163,7 @@ class Stock:
         mape = self.calculate_mape(np.array(stockprices[self.train_size:]['close']),
                                    np.array(stockprices[self.train_size:][var]))
 
-        if logNeptune:
+        if logNeptune and not self.test_lstm:
             self.run[f"{self.ticker}/{pathName}/RMSE"].log(rmse)
             self.run[f"{self.ticker}/{pathName}/MAPE (%)"].log(mape)
 
@@ -164,30 +178,32 @@ class Stock:
 
         # plt.show()
         # Log images to Neptune new version
-        if logNeptune:
+        if logNeptune and not self.test_lstm:
             self.run[f'{self.ticker}/{pathName}Plot of Stock Predictions with {logmodelName}'].upload(
                 neptune.types.File.as_image(ax.get_figure()))
 
-    def simple_moving_average(self, window_size, stockprices):
+    def simple_moving_average(self, window_size, stockprices, plot=True):
 
         window_var = str(window_size) + 'day'
 
         stockprices[window_var] = stockprices[['close']].rolling(window_size).mean()
         stockprices['200day'] = stockprices[['close']].rolling(200).mean()
 
-        self.plot_stock_trend(var=window_var, cur_title='Simple Moving Averages', stockprices=stockprices,
-                              logmodelName='Simple MA', pathName='SMA')
+        if plot:
+            self.plot_stock_trend(var=window_var, cur_title='Simple Moving Averages', stockprices=stockprices,
+                                  logmodelName='Simple MA', pathName='SMA')
 
         self.calculate_perf_metrics(var=window_var, stockprices=stockprices, logmodelName='Simple MA', pathName='SMA')
 
-    def exponential_moving_average(self, window_size, stockprices):
+    def exponential_moving_average(self, window_size, stockprices, plot=True):
         window_var = str(window_size) + 'day_EMA'
 
         stockprices[window_var] = stockprices['close'].ewm(span=window_size, adjust=False).mean()
         stockprices['200day'] = stockprices['close'].rolling(200).mean()
 
-        self.plot_stock_trend(var=window_var, cur_title='Exponential Moving Averages', stockprices=stockprices,
-                              logmodelName='Exp MA', pathName='EMA')
+        if plot:
+            self.plot_stock_trend(var=window_var, cur_title='Exponential Moving Averages', stockprices=stockprices,
+                                  logmodelName='Exp MA', pathName='EMA')
         self.calculate_perf_metrics(var=window_var, stockprices=stockprices, logmodelName='Exp MA', pathName='EMA')
 
     def handle_lstm(self):
@@ -234,6 +250,23 @@ class Stock:
     def run_lstm(self, x_train, layer_units=50, logNeptune=True, NeptuneProject=None):
         inp = Input(shape=(x_train.shape[1], 1))
 
+        x = LSTM(units=layer_units, return_sequences=True)(inp)
+        x = LSTM(units=layer_units)(x)
+
+        out = Dense(1, activation='linear')(x)
+        model = Model(inp, out)
+
+        model.compile(loss='mean_squared_error', optimizer='adam')
+
+        if logNeptune:
+            model.summary(print_fn=lambda z: NeptuneProject[f"{self.ticker}/LSTM/model_summary"].log(z))
+
+        return model
+
+    # @tf.function
+    def run_lstm_tensor(self, x_train, layer_units=50, logNeptune=True, NeptuneProject=None):
+        x_train = tf.convert_to_tensor(x_train)
+        inp = Input(shape=(x_train.shape[1], 1))
         x = LSTM(units=layer_units, return_sequences=True)(inp)
         x = LSTM(units=layer_units)(x)
 
