@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.python.keras import Input, Model
 from tensorflow.python.keras.layers import LSTM, Dense
+import tensorflow_model_optimization as tfmot
 
 load_dotenv()
 NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
@@ -75,7 +76,20 @@ class Stock:
 
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
-        model = self.run_lstm_tensor(x_train, layer_units=layer_units, logNeptune=False)
+
+        # num_images = x_train.shape[0] * (1 - 0.1)
+        # end_step = np.ceil(num_images / cur_batch_size).astype(np.int32) * cur_epochs
+        #
+        # pruning_params = {
+        #     'pruning_schedule': tfmot.sparsity.keras.PolynomialDecay(initial_sparsity=0.50,
+        #                                                              final_sparsity=0.80,
+        #                                                              begin_step=0,
+        #                                                              end_step=end_step)
+        # }
+        #
+        # model = self.run_lstm_tensor(x_train, layer_units=layer_units, logNeptune=False, pruning_params=pruning_params)
+
+        model = self.run_lstm(x_train, layer_units=layer_units, logNeptune=False)
         model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1,
                   shuffle=True)
 
@@ -214,6 +228,7 @@ class Stock:
 
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
+
         model = self.run_lstm(x_train, NeptuneProject=self.run)
         model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=1, validation_split=0.1,
                   shuffle=True)
@@ -263,15 +278,20 @@ class Stock:
 
         return model
 
-    # @tf.function
-    def run_lstm_tensor(self, x_train, layer_units=50, logNeptune=True, NeptuneProject=None):
+    # this is attempting to be a more optimized function for training models but wtf is tf
+    def run_lstm_tensor(self, x_train, pruning_params, layer_units=50, logNeptune=True, NeptuneProject=None):
         x_train = tf.convert_to_tensor(x_train)
+
         inp = Input(shape=(x_train.shape[1], 1))
         x = LSTM(units=layer_units, return_sequences=True)(inp)
         x = LSTM(units=layer_units)(x)
-
         out = Dense(1, activation='linear')(x)
-        model = Model(inp, out)
+
+        model_for_pruning = Model(inp, out)
+
+        prune_low_magnitude = tfmot.sparsity.keras.prune_low_magnitude
+
+        model = prune_low_magnitude(model_for_pruning, **pruning_params)
 
         model.compile(loss='mean_squared_error', optimizer='adam')
 
