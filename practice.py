@@ -54,3 +54,35 @@
 # print(predicted)
 #
 # plt.show()
+import time
+import requests
+import csv
+
+with open('tickers.txt', 'r') as f:
+    tickers = f.readlines()
+
+for ticker in tickers:
+    ticker = str(ticker).strip()
+    print(f"getting data for {ticker}")
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey=ZLGDWBU4HK5QHIXT&datatype=csv&outputsize=full"
+
+    try:
+        response = requests.get(url)
+    except Exception as e:
+        print(e)
+        exit(1)
+
+    lines = response.text.splitlines()
+    if 400 < len(lines):
+        lines = lines[:400]
+    reader = csv.reader(lines)
+
+    f = open(f"{ticker}_data.csv", 'w')
+    csv_writer = csv.writer(f)
+    for row in reader:
+        csv_writer.writerow(row)
+
+    f.close()
+
+    time.sleep(15)
+

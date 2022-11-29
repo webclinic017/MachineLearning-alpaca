@@ -1,0 +1,43 @@
+{"obj": {"type": "AssignString", "path": ["sys", "name"], "value": "Untitled"}, "version": 1}
+{"obj": {"type": "AssignString", "path": ["sys", "description"], "value": ""}, "version": 2}
+{"obj": {"type": "AssignString", "path": ["sys", "hostname"], "value": "WHS2615"}, "version": 3}
+{"obj": {"type": "AssignBool", "path": ["sys", "failed"], "value": false}, "version": 4}
+{"obj": {"type": "ClearStringLog", "path": ["monitoring", "stdout"]}, "version": 5}
+{"obj": {"type": "ClearStringLog", "path": ["monitoring", "stderr"]}, "version": 6}
+{"obj": {"type": "AssignString", "path": ["source_code", "entrypoint"], "value": "DatasetAnalysis.py"}, "version": 7}
+{"obj": {"type": "UploadFileSet", "path": ["source_code", "files"], "file_globs": ["/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py"], "reset": "False"}, "version": 8}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "Info (NVML): NVML Shared Library Not Found. GPU usage metrics may not be reported. For more information, see https://docs.neptune.ai/you-should-know/what-can-you-log-and-display#hardware-consumption\n", "step": null, "ts": 1665751664.074257}]}, "version": 9}
+{"obj": {"type": "ConfigFloatSeries", "path": ["monitoring", "cpu"], "min": 0.0, "max": 100.0, "unit": "%"}, "version": 10}
+{"obj": {"type": "ClearFloatLog", "path": ["monitoring", "cpu"]}, "version": 11}
+{"obj": {"type": "ConfigFloatSeries", "path": ["monitoring", "memory"], "min": 0.0, "max": 8.0, "unit": "GB"}, "version": 12}
+{"obj": {"type": "ClearFloatLog", "path": ["monitoring", "memory"]}, "version": 13}
+{"obj": {"type": "LogFloats", "path": ["monitoring", "cpu"], "values": [{"value": 14.5, "step": null, "ts": 1665751664.078429}]}, "version": 14}
+{"obj": {"type": "LogFloats", "path": ["monitoring", "memory"], "values": [{"value": 6.7017822265625, "step": null, "ts": 1665751664.078429}]}, "version": 15}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "traceback"], "values": [{"value": "An uncaught exception occurred while run was active on worker WHS2615.", "step": null, "ts": 1665751664.117899}, {"value": "Marking run as failed", "step": null, "ts": 1665751664.117899}, {"value": "Traceback:", "step": null, "ts": 1665751664.117899}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 141, in <module>\n    plot_stock_trend('close', 'First Try', stockprices=data)\n", "step": null, "ts": 1665751664.117899}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 90, in plot_stock_trend\n    ax = stockprices[['close', var, '200day']].plot(figsize=(20, 10))\n", "step": null, "ts": 1665751664.117899}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/frame.py\", line 3511, in __getitem__\n    indexer = self.columns._get_indexer_strict(key, \"columns\")[1]\n", "step": null, "ts": 1665751664.117899}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/indexes/base.py\", line 5796, in _get_indexer_strict\n    self._raise_if_missing(keyarr, indexer, axis_name)\n", "step": null, "ts": 1665751664.117899}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/indexes/base.py\", line 5859, in _raise_if_missing\n    raise KeyError(f\"{not_found} not in index\")\n", "step": null, "ts": 1665751664.117899}, {"value": "\"['200day'] not in index\"", "step": null, "ts": 1665751664.117899}]}, "version": 16}
+{"obj": {"type": "AssignBool", "path": ["sys", "failed"], "value": true}, "version": 17}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "Traceback (most recent call last):\n", "step": null, "ts": 1665751664.1189492}]}, "version": 18}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 141, in <module>\n", "step": null, "ts": 1665751664.1192288}]}, "version": 19}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665751664.120107}]}, "version": 20}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "plot_stock_trend('close', 'First Try', stockprices=data)", "step": null, "ts": 1665751664.120765}]}, "version": 21}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.1210408}]}, "version": 22}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 90, in plot_stock_trend\n", "step": null, "ts": 1665751664.121312}]}, "version": 23}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665751664.1221418}]}, "version": 24}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "ax = stockprices[['close', var, '200day']].plot(figsize=(20, 10))", "step": null, "ts": 1665751664.122485}]}, "version": 25}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.122865}]}, "version": 26}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/frame.py\", line 3511, in __getitem__\n", "step": null, "ts": 1665751664.1231942}]}, "version": 27}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665751664.1247082}]}, "version": 28}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "indexer = self.columns._get_indexer_strict(key, \"columns\")[1]", "step": null, "ts": 1665751664.1250439}]}, "version": 29}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.125289}]}, "version": 30}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/indexes/base.py\", line 5796, in _get_indexer_strict\n", "step": null, "ts": 1665751664.125551}]}, "version": 31}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665751664.1275032}]}, "version": 32}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "self._raise_if_missing(keyarr, indexer, axis_name)", "step": null, "ts": 1665751664.127889}]}, "version": 33}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.1281621}]}, "version": 34}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/venv/lib/python3.8/site-packages/pandas/core/indexes/base.py\", line 5859, in _raise_if_missing\n", "step": null, "ts": 1665751664.1284428}]}, "version": 35}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665751664.130537}]}, "version": 36}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "raise KeyError(f\"{not_found} not in index\")", "step": null, "ts": 1665751664.1309068}]}, "version": 37}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.131157}]}, "version": 38}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "KeyError", "step": null, "ts": 1665751664.131437}]}, "version": 39}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": ": ", "step": null, "ts": 1665751664.1317089}]}, "version": 40}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\"['200day'] not in index\"", "step": null, "ts": 1665751664.131993}]}, "version": 41}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665751664.13228}]}, "version": 42}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stdout"], "values": [{"value": "Shutting down background jobs, please wait a moment...\n", "step": null, "ts": 1665751664.13268}]}, "version": 43}

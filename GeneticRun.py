@@ -23,11 +23,11 @@ with open('tickers.txt', 'r') as f:
 
 def run_generation():
     global best, gen, lowest_mape, tickers
-    item_lock = Lock()
     individuals = []
     threads = []
-    items = {}
     shuffle(tickers)
+    all_items = []
+    all_pars = []
 
     if gen == 1:
         for i in range(population_size):
@@ -37,9 +37,12 @@ def run_generation():
                 'window_size': randint(5, 75),
                 'layer_units': randint(5, 75)
             }
-            items[lstm_pars] = {}
+            all_pars.append(lstm_pars)
+            items = set()
+            all_items.append(items)
+            item_lock = Lock()
             for j in range(10):
-                individuals.append(Individual.Individual(lstm_pars, ticker=tickers[j]))
+                individuals.append(Individual.Individual(lstm_pars, items, item_lock, ticker=tickers[j]))
     else:
         increment = 10//gen
         for i in range(population_size):
@@ -49,12 +52,15 @@ def run_generation():
                 'window_size': randint(best['window_size']-increment, best['window_size']+increment),
                 'layer_units': randint(best['layer_units']-increment, best['layer_units']+increment)
             }
-            items[lstm_pars] = {}
+            all_pars.append(lstm_pars)
+            items = set()
+            all_items.append(items)
+            item_lock = Lock()
             for j in range(10):
-                individuals.append(Individual.Individual(lstm_pars, ticker=tickers[j]))
+                individuals.append(Individual.Individual(lstm_pars, items, item_lock, ticker=tickers[j]))
 
     for individual in individuals:
-        threads.append(Thread(target=individual.calculate_fitness, args=(items, item_lock)))
+        threads.append(Thread(target=individual.calculate_fitness, args=()))
 
     print('starting threads')
     for thread in threads:
@@ -64,8 +70,10 @@ def run_generation():
         thread.join()
 
     low_mape = None
-    for pars, val in items.items():
-        mape = mean(val)
+    for i in range(len(all_items)):
+        item = all_items[i]
+        pars = all_pars[i]
+        mape = mean(item)
         if low_mape is None or mape < low_mape:
             low_mape = mape
             low_pars = pars

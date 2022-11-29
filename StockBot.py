@@ -6,6 +6,7 @@ import csv
 from dotenv import load_dotenv
 from pathlib import Path
 import os
+import time
 import warnings
 import neptune.new as neptune
 import matplotlib
@@ -27,7 +28,7 @@ class Stock:
         self.test_lstm = test_lstm
         self.dataset_size = dataset_size
         self.run = run
-        self.ticker = ticker
+        self.ticker = ticker.strip()
         if test_lstm:
             self.data = self.read_data_from_file()
         else:
@@ -62,6 +63,8 @@ class Stock:
         matplotlib.use('SVG')
         warnings.filterwarnings(action='ignore', category=UserWarning)
 
+        start_time = time.time()
+
         self.simple_moving_average(50, stockprices=self.flippedData, plot=plot)
         self.exponential_moving_average(50, stockprices=self.flippedData, plot=plot)
 
@@ -73,6 +76,9 @@ class Stock:
         window_size = lstm_pars['window_size']
         layer_units = lstm_pars['layer_units']
         scaler = StandardScaler()
+
+        A_time = time.time()
+        print(f"section A: {A_time-start_time}")
 
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
@@ -93,10 +99,16 @@ class Stock:
         model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1,
                   shuffle=True)
 
+        B_time = time.time()
+        print(f"section B: {B_time-start_time}")
+
         x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
         predicted_price_ = model.predict(x_test)
         predicted_price = scaler.inverse_transform(predicted_price_)
         self.test['Predictions_lstm'] = predicted_price
+
+        C_time = time.time()
+        print(f"section C: {C_time - start_time}")
 
         mape_lstm = self.calculate_mape(np.array(self.test['close']), np.array(self.test['Predictions_lstm']))
 
@@ -126,7 +138,7 @@ class Stock:
             lines = lines[:self.dataset_size]
         reader = csv.reader(lines)
 
-        f = open(f"{self.ticker}_data.csv", 'w')
+        f = open(f"Data/{self.ticker}_data.csv", 'w')
         csv_writer = csv.writer(f)
         for row in reader:
             csv_writer.writerow(row)
@@ -134,12 +146,12 @@ class Stock:
         f.close()
 
     def read_data_from_file(self):
-        if Path(f"{self.ticker}_data.csv").is_file():
-            return pandas.read_csv(f"{self.ticker}_data.csv")
+        if Path(f"Data/{self.ticker}_data.csv").is_file():
+            return pandas.read_csv(f"Data/{self.ticker}_data.csv")
         else:
-            print(f"No file: {self.ticker}_data.csv, getting data")
+            print(f"No file: Data/{self.ticker}_data.csv, getting data")
             self.get_new_data_to_file()
-            return pandas.read_csv(f"{self.ticker}_data.csv")
+            return pandas.read_csv(f"Data/{self.ticker}_data.csv")
 
     def extract_seqX_outcomeY(self, data, N, offset):
         """

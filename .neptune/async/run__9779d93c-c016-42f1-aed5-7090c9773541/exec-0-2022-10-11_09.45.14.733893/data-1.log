@@ -1,0 +1,31 @@
+{"obj": {"type": "AssignString", "path": ["sys", "name"], "value": "Untitled"}, "version": 1}
+{"obj": {"type": "AssignString", "path": ["sys", "description"], "value": ""}, "version": 2}
+{"obj": {"type": "AssignString", "path": ["sys", "hostname"], "value": "WHS2615"}, "version": 3}
+{"obj": {"type": "AssignBool", "path": ["sys", "failed"], "value": false}, "version": 4}
+{"obj": {"type": "ClearStringLog", "path": ["monitoring", "stdout"]}, "version": 5}
+{"obj": {"type": "ClearStringLog", "path": ["monitoring", "stderr"]}, "version": 6}
+{"obj": {"type": "AssignString", "path": ["source_code", "entrypoint"], "value": "DatasetAnalysis.py"}, "version": 7}
+{"obj": {"type": "UploadFileSet", "path": ["source_code", "files"], "file_globs": ["/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py"], "reset": "False"}, "version": 8}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "Info (NVML): NVML Shared Library Not Found. GPU usage metrics may not be reported. For more information, see https://docs.neptune.ai/you-should-know/what-can-you-log-and-display#hardware-consumption\n", "step": null, "ts": 1665495914.861691}]}, "version": 9}
+{"obj": {"type": "ConfigFloatSeries", "path": ["monitoring", "cpu"], "min": 0.0, "max": 100.0, "unit": "%"}, "version": 10}
+{"obj": {"type": "ClearFloatLog", "path": ["monitoring", "cpu"]}, "version": 11}
+{"obj": {"type": "ConfigFloatSeries", "path": ["monitoring", "memory"], "min": 0.0, "max": 8.0, "unit": "GB"}, "version": 12}
+{"obj": {"type": "ClearFloatLog", "path": ["monitoring", "memory"]}, "version": 13}
+{"obj": {"type": "LogFloats", "path": ["monitoring", "cpu"], "values": [{"value": 26.9, "step": null, "ts": 1665495914.865623}]}, "version": 14}
+{"obj": {"type": "LogFloats", "path": ["monitoring", "memory"], "values": [{"value": 6.7568817138671875, "step": null, "ts": 1665495914.865623}]}, "version": 15}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "traceback"], "values": [{"value": "An uncaught exception occurred while run was active on worker WHS2615.", "step": null, "ts": 1665495914.872052}, {"value": "Marking run as failed", "step": null, "ts": 1665495914.872052}, {"value": "Traceback:", "step": null, "ts": 1665495914.872052}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 125, in <module>\n    plot_stock_trend('close', 'First Try', stockprices)\n", "step": null, "ts": 1665495914.872052}, {"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 90, in plot_stock_trend\n    ax = stockprices[['close', var, '200day']].plot(figsize=(20, 10))\n", "step": null, "ts": 1665495914.872052}, {"value": "tuple indices must be integers or slices, not list", "step": null, "ts": 1665495914.872052}]}, "version": 16}
+{"obj": {"type": "AssignBool", "path": ["sys", "failed"], "value": true}, "version": 17}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "Traceback (most recent call last):\n", "step": null, "ts": 1665495914.872695}]}, "version": 18}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 125, in <module>\n", "step": null, "ts": 1665495914.872912}]}, "version": 19}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665495914.873559}]}, "version": 20}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "plot_stock_trend('close', 'First Try', stockprices)", "step": null, "ts": 1665495914.8738408}]}, "version": 21}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665495914.874039}]}, "version": 22}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "  File \"/Users/eli_sodickson/PycharmProjects/MachineLearning/DatasetAnalysis.py\", line 90, in plot_stock_trend\n", "step": null, "ts": 1665495914.874241}]}, "version": 23}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "    ", "step": null, "ts": 1665495914.874872}]}, "version": 24}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "ax = stockprices[['close', var, '200day']].plot(figsize=(20, 10))", "step": null, "ts": 1665495914.875124}]}, "version": 25}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665495914.875317}]}, "version": 26}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "TypeError", "step": null, "ts": 1665495914.875513}]}, "version": 27}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": ": ", "step": null, "ts": 1665495914.8757062}]}, "version": 28}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "tuple indices must be integers or slices, not list", "step": null, "ts": 1665495914.875895}]}, "version": 29}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stderr"], "values": [{"value": "\n", "step": null, "ts": 1665495914.8760982}]}, "version": 30}
+{"obj": {"type": "LogStrings", "path": ["monitoring", "stdout"], "values": [{"value": "Shutting down background jobs, please wait a moment...\n", "step": null, "ts": 1665495914.876418}]}, "version": 31}
