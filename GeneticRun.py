@@ -39,7 +39,8 @@ def run_generation():
             all_pars.append(lstm_pars)
     else:
         increment = 10 // gen
-        for i in range(population_size):
+        all_pars.append(best)
+        for i in range(population_size - 1):
             lstm_pars = {
                 'cur_epochs': randint(best['cur_epochs'] - increment, best['cur_epochs'] + increment),
                 'cur_batch_size': randint(best['cur_batch_size'] - increment, best['cur_batch_size'] + increment),
@@ -72,9 +73,8 @@ def run_generation():
             low_mape = average_mape
             low_pars = paramaters
 
-    if low_mape < lowest_mape:
-        lowest_mape = low_mape
-        best = low_pars
+    lowest_mape = low_mape
+    best = low_pars
 
     print(f"generation: {gen}/{gens}\nbest paramaters: {best}\nmape: {lowest_mape}\nfor stocks {stocks}")
 
