@@ -85,13 +85,13 @@ class Stock:
         # converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
         # converter.optimizations = [tf.lite.Optimize.DEFAULT]
         # quantized_and_pruned_tflite_model = converter.convert()
-        A_time = time.time()
-        print(f"section A: {A_time - start_time}")
+        # A_time = time.time()
+        # print(f"section A: {A_time - start_time}")
         model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1,
                   shuffle=True)
 
-        B_time = time.time()
-        print(f"section B: {B_time - A_time}")
+        # B_time = time.time()
+        # print(f"section B: {B_time - A_time}")
 
         x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
         predicted_price_ = model.predict(x_test)
