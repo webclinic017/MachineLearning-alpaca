@@ -77,38 +77,26 @@ class Stock:
         layer_units = lstm_pars['layer_units']
         scaler = StandardScaler()
 
-        A_time = time.time()
-        print(f"section A: {A_time-start_time}")
-
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size,
                                                     cur_epochs=cur_epochs, window_size=window_size)
 
-        # num_images = x_train.shape[0] * (1 - 0.1)
-        # end_step = np.ceil(num_images / cur_batch_size).astype(np.int32) * cur_epochs
-        #
-        # pruning_params = {
-        #     'pruning_schedule': tfmot.sparsity.keras.PolynomialDecay(initial_sparsity=0.50,
-        #                                                              final_sparsity=0.80,
-        #                                                              begin_step=0,
-        #                                                              end_step=end_step)
-        # }
-        #
-        # model = self.run_lstm_tensor(x_train, layer_units=layer_units, logNeptune=False, pruning_params=pruning_params)
-
         model = self.run_lstm(x_train, layer_units=layer_units, logNeptune=False)
-        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1,
+        # compress the model to be smaller
+        # converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
+        # converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        # quantized_and_pruned_tflite_model = converter.convert()
+        A_time = time.time()
+        print(f"section A: {A_time - start_time}")
+        model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1,
                   shuffle=True)
 
         B_time = time.time()
-        print(f"section B: {B_time-start_time}")
+        print(f"section B: {B_time - A_time}")
 
         x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
         predicted_price_ = model.predict(x_test)
         predicted_price = scaler.inverse_transform(predicted_price_)
         self.test['Predictions_lstm'] = predicted_price
-
-        C_time = time.time()
-        print(f"section C: {C_time - start_time}")
 
         mape_lstm = self.calculate_mape(np.array(self.test['close']), np.array(self.test['Predictions_lstm']))
 

@@ -54,35 +54,49 @@
 # print(predicted)
 #
 # plt.show()
-import time
-import requests
-import csv
+# import time
+# import requests
+# import csv
+#
+# with open('tickers.txt', 'r') as f:
+#     tickers = f.readlines()
+#
+# for ticker in tickers:
+#     ticker = str(ticker).strip()
+#     print(f"getting data for {ticker}")
+#     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey=ZLGDWBU4HK5QHIXT&datatype=csv&outputsize=full"
+#
+#     try:
+#         response = requests.get(url)
+#     except Exception as e:
+#         print(e)
+#         exit(1)
+#
+#     lines = response.text.splitlines()
+#     if 400 < len(lines):
+#         lines = lines[:400]
+#     reader = csv.reader(lines)
+#
+#     f = open(f"{ticker}_data.csv", 'w')
+#     csv_writer = csv.writer(f)
+#     for row in reader:
+#         csv_writer.writerow(row)
+#
+#     f.close()
+#
+#     time.sleep(15)
+#
 
-with open('tickers.txt', 'r') as f:
-    tickers = f.readlines()
+import Individual
+from threading import Lock
+b = set()
+lstm_pars = {
+                'cur_epochs': 20,
+                'cur_batch_size': 20,
+                'window_size': 50,
+                'layer_units': 50
+            }
 
-for ticker in tickers:
-    ticker = str(ticker).strip()
-    print(f"getting data for {ticker}")
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey=ZLGDWBU4HK5QHIXT&datatype=csv&outputsize=full"
-
-    try:
-        response = requests.get(url)
-    except Exception as e:
-        print(e)
-        exit(1)
-
-    lines = response.text.splitlines()
-    if 400 < len(lines):
-        lines = lines[:400]
-    reader = csv.reader(lines)
-
-    f = open(f"{ticker}_data.csv", 'w')
-    csv_writer = csv.writer(f)
-    for row in reader:
-        csv_writer.writerow(row)
-
-    f.close()
-
-    time.sleep(15)
-
+a = Individual.Individual(lstm_pars, b, Lock(), "AAPL")
+a.calculate_fitness()
+print(b)
