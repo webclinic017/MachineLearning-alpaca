@@ -13,7 +13,7 @@ class Individual:
     def calculate_fitness(self):
         global TARGET
         mape = self.stock_bot.begin_lstm(self.lstm_pars)
-        print(f"DONE, params: {self.lstm_pars}, stock: {self.ticker}")
+        print(f"DONE, params: {self.lstm_pars}, stock: {self.ticker}, mape: {mape}")
         return mape
 
     def calc_test(self):

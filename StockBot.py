@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 import time
+from datetime import datetime
 import warnings
 import neptune.new as neptune
 import matplotlib
@@ -29,10 +30,7 @@ class Stock:
         self.dataset_size = dataset_size
         self.run = run
         self.ticker = ticker.strip()
-        if test_lstm:
-            self.data = self.read_data_from_file()
-        else:
-            self.data = self.get_new_data()
+        self.data = self.get_new_data()
         self.flippedData = self.data.copy().loc[::-1].reset_index(drop=True)
         self.test_ratio = test_ratio
         self.train_ratio = 1 - test_ratio
@@ -63,8 +61,6 @@ class Stock:
         matplotlib.use('SVG')
         warnings.filterwarnings(action='ignore', category=UserWarning)
 
-        start_time = time.time()
-
         self.simple_moving_average(50, stockprices=self.flippedData, plot=plot)
         self.exponential_moving_average(50, stockprices=self.flippedData, plot=plot)
 
@@ -85,13 +81,9 @@ class Stock:
         # converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
         # converter.optimizations = [tf.lite.Optimize.DEFAULT]
         # quantized_and_pruned_tflite_model = converter.convert()
-        # A_time = time.time()
-        # print(f"section A: {A_time - start_time}")
+
         model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1,
                   shuffle=True)
-
-        # B_time = time.time()
-        # print(f"section B: {B_time - A_time}")
 
         x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
         predicted_price_ = model.predict(x_test)
@@ -103,14 +95,8 @@ class Stock:
         return mape_lstm
 
     def get_new_data(self):
-        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
-        try:
-            info = pandas.read_csv(url)[:self.dataset_size]
-        except Exception as e:
-            print(f"Couldn't get data from url: {url} with exception: {e}")
-            exit(1)
-
-        return info
+        self.get_new_data_to_file()
+        return self.read_data_from_file()
 
     def get_new_data_to_file(self):
         url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={self.ticker}&apikey={ALPHA_VANTAGE_TOKEN}&datatype=csv&outputsize=full"
@@ -128,9 +114,9 @@ class Stock:
 
         f = open(f"Data/{self.ticker}_data.csv", 'w')
         csv_writer = csv.writer(f)
+
         for row in reader:
             csv_writer.writerow(row)
-
         f.close()
 
     def read_data_from_file(self):
@@ -230,7 +216,7 @@ class Stock:
                                                     cur_epochs=cur_epochs, window_size=window_size)
 
         model = self.run_lstm(x_train, NeptuneProject=self.run)
-        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=1, validation_split=0.1,
+        model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1,
                   shuffle=True)
 
         x_test = self.preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
@@ -245,8 +231,7 @@ class Stock:
         self.run[f"{self.ticker}/LSTM/MAPE (%)"].log(mape_lstm)
         self.plot_stock_trend_lstm(self.train, self.test)
 
-    def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15,
-                            cur_batch_size=20, window_size=50):
+    def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15, cur_batch_size=20, window_size=50):
 
         if not self.test_lstm:
             cur_LSTM_pars = {'units': layer_units,
@@ -340,18 +325,28 @@ if __name__ == '__main__':
     matplotlib.use('SVG')
     warnings.filterwarnings(action='ignore', category=UserWarning)
 
+    dateTimeObj = datetime.now()
+    custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
+
     run = neptune.init(
         project="elitheknight/Stock-Prediction",
         api_token=NEPTUNE_API_TOKEN,
+        custom_run_id=custom_id
     )
-
-    listoftickers = ['IBM', 'FXAIX']
+    blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
+    # max to run at once is 20 because of pandas figure limits
+    listoftickers = ['NKE', 'TMO']
     threads = []
+    get_new_data = True
     for ticker_ in listoftickers:
+        if ticker_ in blacklist:
+            continue
         threads.append(threading.Thread(target=start, args=(ticker_, run)))
 
     for thread in threads:
         thread.start()
+        if get_new_data:
+            time.sleep(20)
 
     for thread in threads:
         thread.join()

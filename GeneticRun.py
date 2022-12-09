@@ -1,8 +1,15 @@
+import time
 import Individual
 from random import randint, shuffle
-# from threading import Thread, Lock
 from statistics import mean
-from multiprocessing import Process, Pool, Lock
+from multiprocessing import Pool
+import os
+import neptune.new as neptune
+from dotenv import load_dotenv
+from datetime import datetime
+
+load_dotenv()
+NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
 
 population_size = 5
 gen = 1
@@ -14,15 +21,9 @@ lowest_mape = 1000
 with open('tickers.txt', 'r') as f:
     tickers = f.readlines()
 
-# lstm_pars = {
-        #     'cur_epochs': 5-30,
-        #     'cur_batch_size': 20-60,
-        #     'window_size': 5-75,
-        #     'layer_units': 5-75
-        # }
 
-
-def run_generation():
+def run_generation(log_neptune=True):
+    start = time.time()
     global best, gen, lowest_mape, tickers
     shuffle(tickers)
     all_pars = []
@@ -54,31 +55,37 @@ def run_generation():
         for h in range(population_size):
             pars.append((all_pars[h], tickers[j].strip()))
 
-    print(f"pars: {pars}")
-    pool = Pool(processes=10)
+    if log_neptune:
+        run["LSTM_Pars"].log(pars)
 
+    pool = Pool(processes=10)
     print('starting processes')
     result = pool.starmap_async(run_individual, pars)
 
     results = result.get()
-    print(results)
+
+    if log_neptune:
+        run["Results"].log(results)
     stocks = tickers[:10]
     low_mape = None
     for i in range(population_size):
         mapes = [results[h*population_size+i] for h in range(10)]
         average_mape = mean(mapes)
         paramaters = pars[i][0]
-        print(f"with pars: {paramaters},\nAverage mape is: {average_mape}")
+        if log_neptune:
+            run["Average_MAPE"].log(f"with pars: {paramaters},\nAverage mape is: {average_mape}")
         if low_mape is None or average_mape < low_mape:
             low_mape = average_mape
             low_pars = paramaters
 
     lowest_mape = low_mape
     best = low_pars
-
-    print(f"generation: {gen}/{gens}\nbest paramaters: {best}\nmape: {lowest_mape}\nfor stocks {stocks}")
-
     pool.close()
+    end = time.time() - start
+    if log_neptune:
+        run[f"Generations/gen{gen}"].log(f"gen: {gen}/{gens} ran in {end} seconds\n best pars: {best}\nmape: {lowest_mape}\n for stocks: {stocks}")
+    print(f"generation: {gen}/{gens} ran in {end} seconds\nbest paramaters: {best}\nmape: {lowest_mape}\nfor stocks: {stocks}")
+
     gen += 1
 
 
@@ -88,6 +95,15 @@ def run_individual(lstm_pars, ticker):
 
 
 if __name__ == '__main__':
+
+    dateTimeObj = datetime.now()
+    custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
+
+    run = neptune.init(
+        project="elitheknight/GeneticStock",
+        api_token=NEPTUNE_API_TOKEN,
+        custom_run_id=custom_id
+    )
 
     while gen <= gens:
         run_generation()
