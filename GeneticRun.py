@@ -107,4 +107,3 @@ if __name__ == '__main__':
 
     while gen <= gens:
         run_generation()
-
