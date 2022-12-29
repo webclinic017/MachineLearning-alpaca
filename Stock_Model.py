@@ -2,7 +2,7 @@ import tensorflow as tf
 
 class StockModel:
 
-    def __init__(self, filePath, model: tf.keras.Model = None):
+    def __init__(self, filePath, model: tf.keras.Sequential = None):
         self.filePath = filePath
         if model is None:
             self.load_model()
@@ -15,5 +15,5 @@ class StockModel:
     def load_model(self):
         self.model = tf.keras.models.load_model(filepath=self.filePath)
 
-    def train_model(self):
-
+    def update_model(self, model: tf.keras.Sequential = None):
+        self.model = model

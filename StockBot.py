@@ -16,7 +16,6 @@ from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.python.keras import Input, Model
 from tensorflow.python.keras.layers import LSTM, Dense
-import tensorflow_model_optimization as tfmot
 
 load_dotenv()
 NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
@@ -255,28 +254,6 @@ class Stock:
 
         out = Dense(1, activation='linear')(x)
         model = Model(inp, out)
-
-        model.compile(loss='mean_squared_error', optimizer='adam')
-
-        if logNeptune:
-            model.summary(print_fn=lambda z: NeptuneProject[f"{self.ticker}/LSTM/model_summary"].log(z))
-
-        return model
-
-    # this is attempting to be a more optimized function for training models but wtf is tf
-    def run_lstm_tensor(self, x_train, pruning_params, layer_units=50, logNeptune=True, NeptuneProject=None):
-        x_train = tf.convert_to_tensor(x_train)
-
-        inp = Input(shape=(x_train.shape[1], 1))
-        x = LSTM(units=layer_units, return_sequences=True)(inp)
-        x = LSTM(units=layer_units)(x)
-        out = Dense(1, activation='linear')(x)
-
-        model_for_pruning = Model(inp, out)
-
-        prune_low_magnitude = tfmot.sparsity.keras.prune_low_magnitude
-
-        model = prune_low_magnitude(model_for_pruning, **pruning_params)
 
         model.compile(loss='mean_squared_error', optimizer='adam')
 
