@@ -39,8 +39,26 @@ def calculate_mape(y_true, y_pred):
     return mape
 
 
-def preprocess_testdat(data, scaler, window_size, test):
-    raw = data['close'][len(data) - len(test) - window_size:].values
+def calculate_change(last_value, predicted_value):
+    """
+    :param last_value: most recent stock price data point
+    :param predicted_value: predicted stock price data point
+    :return: a tuple of the price change and percent change (price, percent)
+    """
+    price = predicted_value - last_value
+    percent = (predicted_value/last_value - 1) * 100
+
+    return price, percent
+
+
+def preprocess_testdat(data, scaler, window_size):
+    """
+    :param data: dataset
+    :param scaler: StandardScaler
+    :param window_size: # of previous days it uses to predict the next value
+    :return: array of size (window_size, 1) to put into model.predict()
+    """
+    raw = data['close'][len(data) - window_size - 1:].values
     raw = raw.reshape(-1, 1)
     raw = scaler.transform(raw)
 
@@ -60,14 +78,13 @@ class IndividualLSTM:
     def __init__(self, ticker, data, run):
         self.run = run
         self.ticker = ticker.strip()
-        self.data = data
-        self.flippedData = self.data.copy().loc[::-1].reset_index(drop=True)
-        self.test_ratio = 0.2
-        self.train_ratio = 1 - self.test_ratio
-        self.train_size = int(self.train_ratio * len(self.data))
-        self.test_size = int(self.test_ratio * len(self.data))
-        self.train = self.flippedData[:self.train_size]
-        self.test = self.flippedData[self.train_size:]
+        self.flippedData = data.copy().loc[::-1].reset_index(drop=True)
+        # self.test_ratio = 0.2
+        # self.train_ratio = 1 - self.test_ratio
+        # self.train_size = int(self.train_ratio * len(data))
+        # self.test_size = int(self.test_ratio * len(data))
+        # self.train = self.flippedData[:self.train_size]
+        # self.test = self.flippedData[self.train_size:]
         self.handle_lstm()
 
     def handle_lstm(self):
@@ -77,21 +94,20 @@ class IndividualLSTM:
         scaler = StandardScaler()
 
         x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size)
-
         model = self.run_lstm(x_train, NeptuneProject=self.run)
         model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1, shuffle=True)
+        x_test = preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size)
 
-        x_test = preprocess_testdat(data=self.flippedData, scaler=scaler, window_size=window_size, test=self.test)
-        predicted_price_ = model.predict(x_test)
-        predicted_price = scaler.inverse_transform(predicted_price_)
-        self.test['Predictions_lstm'] = predicted_price
+        predicted_price_array = model.predict(x_test)
+        predicted_price_array = scaler.inverse_transform(predicted_price_array)
 
-        rmse_lstm = calculate_rmse(np.array(self.test['close']), np.array(self.test['Predictions_lstm']))
-        mape_lstm = calculate_mape(np.array(self.test['close']), np.array(self.test['Predictions_lstm']))
+        # predicted price for the next day
+        predicted_price = predicted_price_array[0][0]
+        change_price, change_percent = calculate_change(self.flippedData.iloc[-1]['close'], predicted_price)
 
-        self.run[f"{self.ticker}/LSTM/RMSE"].log(rmse_lstm)
-        self.run[f"{self.ticker}/LSTM/MAPE (%)"].log(mape_lstm)
-        self.plot_stock_trend_lstm(self.train, self.test)
+        self.run[f"Predictions/{self.ticker}/LSTM/Price"].log(predicted_price)
+        self.run[f"Predictions/{self.ticker}/LSTM/Change (%)"].log(change_percent)
+        self.run[f"Predictions/{self.ticker}/LSTM/Change ($)"].log(change_price)
 
     def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15, cur_batch_size=20, window_size=50):
 
@@ -102,8 +118,8 @@ class IndividualLSTM:
                          }
         self.run['LSTMPars'] = cur_LSTM_pars
 
-        scaled_data = scaler.fit_transform(stockprices[['close']])
-        scaled_data_train = scaled_data[:self.train.shape[0]]
+        scaled_data = scaler.fit_transform(stockprices[['close']].values)
+        scaled_data_train = scaled_data[:self.flippedData.shape[0]]
 
         x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size, window_size)
         return x_train, y_train
@@ -120,7 +136,7 @@ class IndividualLSTM:
         model.compile(loss='mean_squared_error', optimizer='adam')
 
         if logNeptune:
-            model.summary(print_fn=lambda z: NeptuneProject[f"{self.ticker}/LSTM/model_summary"].log(z))
+            model.summary(print_fn=lambda z: NeptuneProject[f"Predictions/{self.ticker}/LSTM/model_summary"].log(z))
 
         return model
 

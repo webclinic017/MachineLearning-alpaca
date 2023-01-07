@@ -12,7 +12,8 @@ from Individual_LSTM import IndividualLSTM
 
 
 def begin(ticker, id, NAT, AVT):
-    data = get_data(ticker, AVT)
+    dataset_size = 200
+    data = get_data(ticker, AVT, dataset_size)
     run = neptune.init(
         project="elitheknight/Stock-Prediction",
         api_token=NAT,
@@ -25,10 +26,10 @@ def begin(ticker, id, NAT, AVT):
     print(f"{ticker} complete")
 
 
-def get_data(ticker, AVT):
+def get_data(ticker, AVT, dataset_size):
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
     try:
-        return pandas.read_csv(url)
+        return pandas.read_csv(url)[:dataset_size]
     except Exception as e:
         print(f"error in getting data for ticker: {ticker}, url: {url}, error: {e}")
         exit(1)
@@ -38,7 +39,6 @@ if __name__ == '__main__':
     load_dotenv()
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
     ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
-    dataset_size = 200
 
     pandas.options.mode.chained_assignment = None  # default='warn'
     matplotlib.use('SVG')
@@ -57,25 +57,26 @@ if __name__ == '__main__':
 
     blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
     # max to run at once is 20 because of pandas figure limits
-    with open('tickers.txt', 'r') as f:
-        lines = f.readlines()
+    # with open('tickers.txt', 'r') as f:
+    #     lines = f.readlines()
+    lines = ['AAPL']
     listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN) for line in lines if line.strip() not in blacklist]
 
     # multiprocessing
     tickers_to_run = listOfTickers.copy()
-    max_per_min = 4
     num_processes = 4
     num_tickers = len(listOfTickers)
-    groups = num_tickers // max_per_min
-    pool = Pool(processes=num_processes)
+    groups = num_tickers // num_processes + 1
+    # pool = Pool(processes=num_processes)
     for i in range(groups):
+        print("creating pool")
+        pool = Pool(processes=num_processes)
         print(f"starting wave {i+1}/{groups}")
-        result = pool.starmap_async(begin, tickers_to_run[:max_per_min])
-        results = result.get()
-        tickers_to_run = tickers_to_run[max_per_min:]
+        result = pool.starmap_async(begin, tickers_to_run[:num_processes])
+        tickers_to_run = tickers_to_run[num_processes:]
         time.sleep(60)
-
-    pool.close()
+        results = result.get()
+        pool.close()
 
     # # threading
     # threads = []
