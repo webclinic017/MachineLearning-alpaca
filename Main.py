@@ -12,8 +12,8 @@ from Individual_LSTM import IndividualLSTM
 
 
 def begin(ticker, id, NAT, AVT):
-    dataset_size = 200
-    data = get_data(ticker, AVT, dataset_size)
+    dataset_size = 400
+    data = get_data_to_file(ticker, AVT, dataset_size)
     run = neptune.init(
         project="elitheknight/Stock-Prediction",
         api_token=NAT,
@@ -22,8 +22,9 @@ def begin(ticker, id, NAT, AVT):
         capture_stderr=False,
         capture_hardware_metrics=False
     )
-    IndividualLSTM(ticker, data, run)
+    stock = IndividualLSTM(ticker, data, run)
     print(f"{ticker} complete")
+    return ticker, stock.predicted_price, stock.change_price, stock.change_percentage
 
 
 def get_data(ticker, AVT, dataset_size):
@@ -33,6 +34,52 @@ def get_data(ticker, AVT, dataset_size):
     except Exception as e:
         print(f"error in getting data for ticker: {ticker}, url: {url}, error: {e}")
         exit(1)
+
+
+def get_data_to_file(ticker, AVT, dataset_size):
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
+
+    try:
+        df = pandas.read_csv(url)[:dataset_size]
+    except Exception as e:
+        print(f"error in getting data for ticker: {ticker}, url: {url}, error: {e}")
+        exit(1)
+        return
+
+    df.to_csv(f"Data/{ticker}_data.csv")
+
+    return df
+
+
+def predict_stock_prices():
+    blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
+    # max to run at once is 20 because of pandas figure limits
+    with open('tickers.txt', 'r') as f:
+        lines = f.readlines()
+    # lines = ['AAPL']
+    listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN) for line in lines if line.strip() not in blacklist]
+
+    tickers_to_run = listOfTickers.copy()
+    num_processes = 4
+    num_tickers = len(listOfTickers)
+    groups = num_tickers // num_processes + 1
+    stock_prediction_data = []
+
+    for i in range(groups):
+        # multiprocessing
+        pool = Pool(processes=num_processes)
+        print(f"starting wave {i+1}/{groups}")
+        result = pool.starmap_async(begin, tickers_to_run[:num_processes])
+        tickers_to_run = tickers_to_run[num_processes:]
+        # I have to wait at least 60 seconds to limit my API calls
+        time.sleep(60)
+        # start_time = time.time()
+        results = result.get()
+        stock_prediction_data.extend(results)
+        # print(f"delay: {time.time() - start_time}")
+        pool.close()
+
+    return stock_prediction_data
 
 
 if __name__ == '__main__':
@@ -55,40 +102,4 @@ if __name__ == '__main__':
         capture_hardware_metrics=False
     )
 
-    blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
-    # max to run at once is 20 because of pandas figure limits
-    # with open('tickers.txt', 'r') as f:
-    #     lines = f.readlines()
-    lines = ['AAPL']
-    listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN) for line in lines if line.strip() not in blacklist]
-
-    # multiprocessing
-    tickers_to_run = listOfTickers.copy()
-    num_processes = 4
-    num_tickers = len(listOfTickers)
-    groups = num_tickers // num_processes + 1
-    # pool = Pool(processes=num_processes)
-    for i in range(groups):
-        print("creating pool")
-        pool = Pool(processes=num_processes)
-        print(f"starting wave {i+1}/{groups}")
-        result = pool.starmap_async(begin, tickers_to_run[:num_processes])
-        tickers_to_run = tickers_to_run[num_processes:]
-        time.sleep(60)
-        results = result.get()
-        pool.close()
-
-    # # threading
-    # threads = []
-    #
-    # for ticker_ in listOfTickers:
-    #     if ticker_ in blacklist:
-    #         continue
-    #     threads.append(threading.Thread(target=begin, args=(ticker_,)))
-    #
-    # for thread in threads:
-    #     thread.start()
-    #     time.sleep(20)
-    #
-    # for thread in threads:
-    #     thread.join()
+    stock_prediction_data = predict_stock_prices()

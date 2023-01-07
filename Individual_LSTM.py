@@ -68,28 +68,26 @@ def preprocess_testdat(data, scaler, window_size):
         x_test.append(raw[i - window_size:i, 0])
 
     x_test = np.array(x_test)
-
     x_test = np.reshape(x_test, (x_test.shape[0], x_test.shape[1], 1))
+
     return x_test
 
 
 class IndividualLSTM:
 
     def __init__(self, ticker, data, run):
+        self.predicted_price = None
+        self.change_percentage = None
+        self.change_price = None
+
         self.run = run
         self.ticker = ticker.strip()
         self.flippedData = data.copy().loc[::-1].reset_index(drop=True)
-        # self.test_ratio = 0.2
-        # self.train_ratio = 1 - self.test_ratio
-        # self.train_size = int(self.train_ratio * len(data))
-        # self.test_size = int(self.test_ratio * len(data))
-        # self.train = self.flippedData[:self.train_size]
-        # self.test = self.flippedData[self.train_size:]
         self.handle_lstm()
 
     def handle_lstm(self):
-        cur_epochs = 15
-        cur_batch_size = 20
+        cur_epochs = 30
+        cur_batch_size = 32
         window_size = 50
         scaler = StandardScaler()
 
@@ -101,13 +99,15 @@ class IndividualLSTM:
         predicted_price_array = model.predict(x_test)
         predicted_price_array = scaler.inverse_transform(predicted_price_array)
 
+        # set object variables, so I can get the results in Main
         # predicted price for the next day
-        predicted_price = predicted_price_array[0][0]
-        change_price, change_percent = calculate_change(self.flippedData.iloc[-1]['close'], predicted_price)
+        self.predicted_price = predicted_price_array[0][0]
+        self.change_price, self.change_percentage = calculate_change(self.flippedData.iloc[-1]['close'], self.predicted_price)
 
-        self.run[f"Predictions/{self.ticker}/LSTM/Price"].log(predicted_price)
-        self.run[f"Predictions/{self.ticker}/LSTM/Change (%)"].log(change_percent)
-        self.run[f"Predictions/{self.ticker}/LSTM/Change ($)"].log(change_price)
+        # log everything to neptune
+        self.run[f"Predictions/{self.ticker}/LSTM/Price"].log(self.predicted_price)
+        self.run[f"Predictions/{self.ticker}/LSTM/Change (%)"].log(self.change_percentage)
+        self.run[f"Predictions/{self.ticker}/LSTM/Change ($)"].log(self.change_price)
 
     def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15, cur_batch_size=20, window_size=50):
 
