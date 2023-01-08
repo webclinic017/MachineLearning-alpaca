@@ -82,6 +82,16 @@ def predict_stock_prices():
     return stock_prediction_data
 
 
+def handle_predictions(data):
+    """
+    :param data: list of tuples in form (ticker, predicted_price, change_price, change_percentage)
+    :return:
+    """
+
+    sorted_by_percent = sorted(data, key=lambda x: x[3], reverse=True)
+    print(sorted_by_percent)
+
+
 if __name__ == '__main__':
     load_dotenv()
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
@@ -103,3 +113,5 @@ if __name__ == '__main__':
     )
 
     stock_prediction_data = predict_stock_prices()
+
+    handle_predictions(stock_prediction_data)
