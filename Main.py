@@ -1,4 +1,3 @@
-import threading
 import pandas
 from dotenv import load_dotenv
 import os
