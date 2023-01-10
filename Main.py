@@ -10,7 +10,15 @@ from multiprocessing import Pool
 from Individual_LSTM import IndividualLSTM
 
 
-def begin(ticker, id, NAT, AVT):
+def begin(ticker: str, id: str, NAT, AVT):
+    """
+    function multiprocessing processes run. Makes an IndividualLSTM object and runs stock predictions
+    :param ticker: str, ticker of stock to predict
+    :param id: str, neptune run custom id
+    :param NAT: Neptune API Token
+    :param AVT: AlphaVantage Token
+    :return: stock prediction data for the next day: tuple(ticker, predicted_price, change_price, change_percent)
+    """
     dataset_size = 400
     data = get_data_to_file(ticker, AVT, dataset_size)
     run = neptune.init(
@@ -26,7 +34,14 @@ def begin(ticker, id, NAT, AVT):
     return ticker, stock.predicted_price, stock.change_price, stock.change_percentage
 
 
-def get_data(ticker, AVT, dataset_size):
+def get_data(ticker: str, AVT, dataset_size: int):
+    """
+    gets stock csv data, exits the process if it fails
+    :param ticker: str, stock ticker
+    :param AVT: AlphaVantage API token
+    :param dataset_size: int, # of days of data to keep
+    :return: DataFrame of csv data
+    """
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
     try:
         return pandas.read_csv(url)[:dataset_size]
@@ -35,7 +50,14 @@ def get_data(ticker, AVT, dataset_size):
         exit(1)
 
 
-def get_data_to_file(ticker, AVT, dataset_size):
+def get_data_to_file(ticker: str, AVT, dataset_size: int):
+    """
+    gets stock csv data to file and returns it, exits the process if it fails
+    :param ticker: str, stock ticker
+    :param AVT: AlphaVantage API token
+    :param dataset_size: int, # of days of data to keep
+    :return: DataFrame of csv data
+    """
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
 
     try:
@@ -51,18 +73,22 @@ def get_data_to_file(ticker, AVT, dataset_size):
 
 
 def predict_stock_prices():
+    """
+    Loads tickers.txt list of stock tickers and creates Individual_LSTM objects
+    to predict next day stock prices and divides the tasks among a processing pool
+    :return: list[tuples] with stock data (ticker: str, predicted_price: float, change_price: float, change_percent: float)
+    """
     blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
     # max to run at once is 20 because of pandas figure limits
     with open('tickers.txt', 'r') as f:
         lines = f.readlines()
-    # lines = ['AAPL']
     listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN) for line in lines if line.strip() not in blacklist]
 
     tickers_to_run = listOfTickers.copy()
     num_processes = 4
     num_tickers = len(listOfTickers)
     groups = num_tickers // num_processes + 1
-    stock_prediction_data = []
+    stock_predictions = []
 
     for i in range(groups):
         # multiprocessing
@@ -70,15 +96,15 @@ def predict_stock_prices():
         print(f"starting wave {i+1}/{groups}")
         result = pool.starmap_async(begin, tickers_to_run[:num_processes])
         tickers_to_run = tickers_to_run[num_processes:]
-        # I have to wait at least 60 seconds to limit my API calls
+        # I have to wait at least 60 seconds to limit my API calls (max 5/min and 500/day)
         time.sleep(60)
         # start_time = time.time()
         results = result.get()
-        stock_prediction_data.extend(results)
+        stock_predictions.extend(results)
         # print(f"delay: {time.time() - start_time}")
         pool.close()
 
-    return stock_prediction_data
+    return stock_predictions
 
 
 def handle_predictions(data):
@@ -87,8 +113,10 @@ def handle_predictions(data):
     :return:
     """
 
+    # sorts the predictions by predicted percent change from highest to lowest
     sorted_by_percent = sorted(data, key=lambda x: x[3], reverse=True)
-    run_[f"All_prediction_data/Data"].log(sorted_by_percent)
+    # logs the data to neptune
+    run_[f"all_prediction_data/Data"].log(sorted_by_percent)
     print(sorted_by_percent)
 
 
@@ -97,10 +125,12 @@ if __name__ == '__main__':
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
     ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
 
+    # disables unnecessary warnings
     pandas.options.mode.chained_assignment = None  # default='warn'
     matplotlib.use('SVG')
     warnings.filterwarnings(action='ignore', category=UserWarning)
 
+    # create neptune run with custom_id, so it can be referenced in multiprocessing processes
     dateTimeObj = datetime.now()
     custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
     run_ = neptune.init(
