@@ -3,6 +3,7 @@ from typing import Union
 from robin_stocks import robinhood as r
 import pyotp
 from dotenv import load_dotenv
+from datetime import date, datetime
 
 
 def get_my_stocks():
@@ -29,7 +30,7 @@ def buy_stock(ticker: str, price: float):
     :param price: float, amount in $ to buy
     :return: dict of order id and information
     """
-    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='IOC')
     return response
 
 
@@ -48,6 +49,19 @@ def sell_stock(ticker: str, price: float = None):
     return response
 
 
+def check_market_open():
+    today = str(date.today())
+    market_data = r.markets.get_market_hours('XNYS', today)
+
+    if not market_data['is_open']:
+        print(f"The New York Stock Exchange is NOT open today: {today}")
+        return None
+
+    opens = datetime.timestamp(datetime.strptime(market_data['opens_at'], "%Y-%m-%dT%H:%M:%SZ"))
+    closes = datetime.timestamp(datetime.strptime(market_data['closes_at'], "%Y-%m-%dT%H:%M:%SZ"))
+    return opens, closes
+
+
 class Trader:
 
     def __init__(self):
@@ -60,5 +74,5 @@ class Trader:
         # print("Current OTP:", totp)
         # login
         self.login = r.login(username, password, mfa_code=totp)
-
+        self.hours = check_market_open()
 
