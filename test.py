@@ -21,15 +21,8 @@ def get_my_stocks():
     return r.build_holdings()
 
 
-def get_market():
-    return r.get_all_positions()
-
-
-def get_stock(ticker):
-    market = r.get_all_positions()
-    if ticker in market:
-        return market[ticker]
-    return None
+def get_stocks_current_price(stocks):
+    return r.stocks.get_latest_price(stocks)
 
 
 def buy_stock(ticker, price):

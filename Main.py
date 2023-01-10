@@ -88,6 +88,7 @@ def handle_predictions(data):
     """
 
     sorted_by_percent = sorted(data, key=lambda x: x[3], reverse=True)
+    run_[f"All_prediction_data/Data"].log(sorted_by_percent)
     print(sorted_by_percent)
 
 
