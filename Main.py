@@ -16,4 +16,3 @@ if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=UserWarning)
 
     manager = Manager(NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN)
-    manager.trade_for_day()

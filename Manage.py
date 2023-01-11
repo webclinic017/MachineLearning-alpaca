@@ -86,6 +86,7 @@ class Manager:
 
         self.NEPTUNE_API_TOKEN = NAT
         self.ALPHA_VANTAGE_TOKEN = AVT
+        self.trader = None
         self.stock_prediction_data = None
 
     def predict_stock_prices(self):
@@ -128,9 +129,9 @@ class Manager:
         self.stock_prediction_data = stock_predictions
         return stock_predictions
 
-    def trade_for_day(self):
+    def start_trader(self):
         trader = Trader()
         if trader.hours is None:
-            return
-
+            return None
+        self.trader = trader
         self.stock_prediction_data = self.predict_stock_prices()
