@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 from datetime import date, datetime
 
 
+def get_user_info():
+    return r.build_user_profile()
+
+
 def get_my_stocks():
     """
     gets dict of all owned stocks
@@ -30,7 +34,7 @@ def buy_stock(ticker: str, price: float):
     :param price: float, amount in $ to buy
     :return: dict of order id and information
     """
-    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='IOC')
+    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
     return response
 
 
@@ -42,11 +46,17 @@ def sell_stock(ticker: str, price: float = None):
     :return: dict of order id and information
     """
     if price is None:
-        total = get_my_stocks()[ticker]['price']
+        return r.order_sell_fractional_by_quantity(ticker, r.build_holdings[ticker]['quantity'])
     else:
-        total = price
-    response = r.order_sell_fractional_by_price(ticker, total)
-    return response
+        return r.order_sell_fractional_by_price(ticker, price)
+
+
+def get_last_close_price(tickers: Union[str, list]):
+    closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
+    assert(isinstance(closes, list))
+    days = len(closes)/len(tickers)
+    closes = closes[days-1::days]
+    return closes
 
 
 def check_market_open():
@@ -75,4 +85,3 @@ class Trader:
         # login
         self.login = r.login(username, password, mfa_code=totp)
         self.hours = check_market_open()
-

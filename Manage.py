@@ -4,7 +4,9 @@ import neptune.new as neptune
 from multiprocessing import Pool
 from Individual_LSTM import IndividualLSTM
 from Trading import Trader
+import Trading
 from datetime import datetime
+from threading import Timer
 
 
 def begin(ticker: str, id: str, NAT, AVT):
@@ -27,7 +29,7 @@ def begin(ticker: str, id: str, NAT, AVT):
         capture_hardware_metrics=False
     )
     stock = IndividualLSTM(ticker, data, run)
-    print(f"{ticker} complete")
+    # print(f"{ticker} complete")
     return ticker, stock.predicted_price, stock.change_price, stock.change_percentage
 
 
@@ -87,7 +89,79 @@ class Manager:
         self.NEPTUNE_API_TOKEN = NAT
         self.ALPHA_VANTAGE_TOKEN = AVT
         self.trader = None
+        self.orders_for_day = None
         self.stock_prediction_data = None
+
+    def schedule(self):
+        """
+        Starts trading each day at the same time
+        :return:
+        """
+        while True:
+            dt = datetime.now()
+            hr = dt.hour
+            if hr == 8:
+                # one day minus one minute of seconds
+                timer = Timer(86340, self.start)
+                timer.run()
+                time.sleep(3700)
+            else:
+                time.sleep(60)
+
+    def start(self):
+
+        print(f"starting trade bot at: {datetime.now()}")
+        self.start_trader()
+        if self.trader is None:
+            time.sleep(72000)    # sleep for 20 hrs if closed so it doesn't go back to the while loop (more efficient)
+            return
+
+        self.stock_prediction_data = self.predict_stock_prices()
+
+        self.create_orders()
+
+    def create_orders(self):
+        stocks_to_invest = []
+
+        # add all positive stocks to list
+        for entry in self.stock_prediction_data:
+            if entry[3] <= 0:
+                break
+            stocks_to_invest.append(entry)
+
+        stocks_to_invest = stocks_to_invest[:int(len(stocks_to_invest) * 2 / 3)]  # take top 2/3 of positive stocks
+
+        tickers = [entry[0] for entry in stocks_to_invest]
+        previous_close_prices = Trading.get_last_close_price(tickers)
+        current_prices = Trading.get_stocks_current_price(tickers)
+        assert (len(current_prices) == len(previous_close_prices) == len(tickers))
+
+        indices_to_remove = []
+        for i in range(len(tickers)):
+            if max(previous_close_prices[i], current_prices[i]) / min(previous_close_prices[i], current_prices[i]) > \
+                    stocks_to_invest[i][3]:
+                indices_to_remove.insert(0, i)      # too much activity since last close, prediction might not still be accurate
+
+        for i in indices_to_remove:
+            del stocks_to_invest[i]     # remove unstable stocks
+
+        orders = []  # (ticker, $ amount to buy)
+
+        total_percent = sum([percent[3] for percent in stocks_to_invest])
+        assert (total_percent > 0)
+
+        money_to_invest = Trading.get_my_stocks()['equity']     # money in robinhood
+        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
+        for i in range(len(stocks_to_invest)):
+            amount = money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions
+            if amount / money_to_invest > 0.1:
+                new_amount = money_to_invest * 0.1
+                floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
+                amount = new_amount
+
+            orders.append((stocks_to_invest[i][0], amount))
+
+        self.orders_for_day = orders
 
     def predict_stock_prices(self):
         """
@@ -111,7 +185,7 @@ class Manager:
         for i in range(groups):
             # multiprocessing
             pool = Pool(processes=num_processes)
-            print(f"starting wave {i + 1}/{groups}")
+            print(f"\tstarting wave {i + 1}/{groups}")
             result = pool.starmap_async(begin, tickers_to_run[:num_processes])
             tickers_to_run = tickers_to_run[num_processes:]
             # I have to wait at least 60 seconds to limit my API calls (max 5/min and 500/day)
@@ -126,7 +200,6 @@ class Manager:
         stock_predictions = sorted(stock_predictions, key=lambda x: x[3], reverse=True)
         # logs the data to neptune
         self.run[f"all_prediction_data/Data"].log(stock_predictions)
-        self.stock_prediction_data = stock_predictions
         return stock_predictions
 
     def start_trader(self):
@@ -134,4 +207,3 @@ class Manager:
         if trader.hours is None:
             return None
         self.trader = trader
-        self.stock_prediction_data = self.predict_stock_prices()

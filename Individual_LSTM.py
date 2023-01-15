@@ -1,6 +1,4 @@
 import numpy as np
-import neptune.new as neptune
-import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
 from tensorflow.python.keras import Input, Model

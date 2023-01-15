@@ -14,5 +14,6 @@ if __name__ == '__main__':
     pandas.options.mode.chained_assignment = None  # default='warn'
     matplotlib.use('SVG')
     warnings.filterwarnings(action='ignore', category=UserWarning)
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'    # tensorflow cpu not found error
 
     manager = Manager(NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN)
