@@ -5,7 +5,7 @@ from multiprocessing import Pool
 from Individual_LSTM import IndividualLSTM
 from Trading import Trader
 import Trading
-from datetime import datetime
+from datetime import datetime, date
 from threading import Timer
 
 
@@ -71,6 +71,13 @@ def get_data_to_file(ticker: str, AVT, dataset_size: int):
     return df
 
 
+def start_trader():
+    trader = Trader()
+    if trader.hours is None:
+        return None
+    return trader
+
+
 class Manager:
 
     def __init__(self, NAT, AVT):
@@ -88,9 +95,9 @@ class Manager:
 
         self.NEPTUNE_API_TOKEN = NAT
         self.ALPHA_VANTAGE_TOKEN = AVT
-        self.trader = None
         self.orders_for_day = None
         self.stock_prediction_data = None
+        self.schedule()
 
     def schedule(self):
         """
@@ -100,25 +107,49 @@ class Manager:
         while True:
             dt = datetime.now()
             hr = dt.hour
+            # start each day at 8 am, if not between 8-9, sleep an appropriate amount of time
             if hr == 8:
-                # one day minus one minute of seconds
-                timer = Timer(86340, self.start)
-                timer.run()
-                time.sleep(3700)
+                trader = start_trader()
+                if trader is None:
+                    time.sleep(23*3600)
+                    continue
+                self.run_day(trader)
+                time.sleep(3601)
+            elif hr > 8:
+                time.sleep((31-hr)*3600)
+            elif hr < 7:
+                time.sleep(3600)
             else:
                 time.sleep(60)
 
-    def start(self):
-
+    def run_day(self, trader):
         print(f"starting trade bot at: {datetime.now()}")
-        self.start_trader()
-        if self.trader is None:
-            time.sleep(72000)    # sleep for 20 hrs if closed so it doesn't go back to the while loop (more efficient)
-            return
 
         self.stock_prediction_data = self.predict_stock_prices()
 
+        print(f"making orders")
         self.create_orders()
+
+        # wait until market is open and then buy all orders for day
+        while True:
+            current_time = datetime.timestamp(datetime.now())
+            if current_time > trader.hours[0]:
+                print(f"making trades at: {datetime.now()}")
+                self.execute_orders(self.orders_for_day)
+                self.orders_for_day = None
+                break
+            else:
+                time.sleep(60)
+
+        time_before_close = int(trader.hours[1] - trader.hours[0])
+
+        print(f"bought stocks, sleeping for: {time_before_close - 1200} seconds")
+
+        time.sleep(int(time_before_close) - 1200)
+
+        selling_info = Trading.sell_all_stocks()
+        self.record_order_details(selling_info, buying=False)
+        print(f"sold stocks at time: {datetime.now()}")
 
     def create_orders(self):
         stocks_to_invest = []
@@ -202,8 +233,30 @@ class Manager:
         self.run[f"all_prediction_data/Data"].log(stock_predictions)
         return stock_predictions
 
-    def start_trader(self):
-        trader = Trader()
-        if trader.hours is None:
-            return None
-        self.trader = trader
+    def record_order_details(self, records, buying: bool):
+        if buying:
+            self.run[f"buying_records/{str(date.today())}"].log(records)
+            filename = 'buying_records.txt'
+        else:
+            self.run[f"selling_records/{str(date.today())}"].log(records)
+            filename = 'selling_records.txt'
+        with open(filename, 'a') as f:
+            for record in records:
+                f.write(f"{record}/n")
+
+    def execute_orders(self, orders, buying=True):
+        # if Trading.get_my_stocks():
+        #     # if I still have any stocks, sell them so I can make all my orders
+        #     selling_info = Trading.sell_all_stocks()
+        #     self.record_order_details(selling_info, buying=False)
+        #     time.sleep(120)
+
+        details = []
+        if buying:
+            for order in orders:
+                details.append(Trading.buy_stock(ticker=order[0], price=order[1]))
+        else:
+            for order in orders:
+                details.append(Trading.sell_stock(ticker=order[0], price=order[1]))
+
+        self.record_order_details(details, buying=buying)
