@@ -111,13 +111,17 @@ class Manager:
             if hr == 8:
                 trader = start_trader()
                 if trader is None:
+                    print(f"sleeping for{23*3600} seconds")
                     time.sleep(23*3600)
                     continue
                 self.run_day(trader)
+                print(f"sleeping for{3601} seconds")
                 time.sleep(3601)
             elif hr > 8:
+                print(f"sleeping for{(31-hr)*3600} seconds")
                 time.sleep((31-hr)*3600)
             elif hr < 7:
+                print(f"sleeping for{3600} seconds")
                 time.sleep(3600)
             else:
                 time.sleep(60)
