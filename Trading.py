@@ -65,7 +65,7 @@ def sell_all_stocks():
 def get_last_close_price(tickers: Union[str, list]):
     closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
     assert(isinstance(closes, list))
-    days = len(closes)/len(tickers)
+    days = len(closes)//len(tickers)
     closes = closes[days-1::days]
     return closes
 

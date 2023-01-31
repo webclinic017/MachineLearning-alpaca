@@ -169,7 +169,7 @@ class Manager:
 
         indices_to_remove = []
         for i in range(len(tickers)):
-            if max(previous_close_prices[i], current_prices[i]) / min(previous_close_prices[i], current_prices[i]) > \
+            if max(float(previous_close_prices[i]), float(current_prices[i])) / min(float(previous_close_prices[i]), float(current_prices[i])) > \
                     stocks_to_invest[i][3]:
                 indices_to_remove.insert(0, i)      # too much activity since last close, prediction might not still be accurate
 
@@ -181,7 +181,7 @@ class Manager:
         total_percent = sum([percent[3] for percent in stocks_to_invest])
         assert (total_percent > 0)
 
-        money_to_invest = Trading.get_my_stocks()['equity']     # money in robinhood
+        money_to_invest = float(Trading.get_user_info()['equity'])     # money in robinhood
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions
