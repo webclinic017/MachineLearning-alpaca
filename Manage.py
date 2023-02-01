@@ -136,7 +136,7 @@ class Manager:
 
         # wait until market is open and then buy all orders for day
         while True:
-            current_time = datetime.timestamp(datetime.now())
+            current_time = datetime.timestamp(datetime.utcnow())
             if current_time > trader.hours[0]:
                 print(f"making trades at: {datetime.now()}")
                 self.execute_orders(self.orders_for_day)
