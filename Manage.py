@@ -197,6 +197,7 @@ class Manager:
             orders.append((stocks_to_invest[i][0], amount))
 
         self.orders_for_day = orders
+        self.run[f"orders_to_buy"].log(orders)
 
     def predict_stock_prices(self):
         """

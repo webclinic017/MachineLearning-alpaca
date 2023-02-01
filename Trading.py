@@ -34,7 +34,7 @@ def buy_stock(ticker: str, price: float):
     :param price: float, amount in $ to buy
     :return: dict of order id and information
     """
-    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
+    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='gfd')
     return response
 
 
