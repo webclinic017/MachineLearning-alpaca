@@ -109,3 +109,5 @@ websocket-client==1.4.1
 Werkzeug==2.2.2
 wrapt==1.14.1
 zipp==3.9.0
+
+tensorflow~=2.11.0
