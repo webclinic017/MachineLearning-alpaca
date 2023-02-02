@@ -185,7 +185,8 @@ class Manager:
         total_percent = sum([percent[3] for percent in stocks_to_invest])
         assert (total_percent > 0)
 
-        money_to_invest = float(Trading.get_user_info()['equity'])     # money in robinhood
+        user_info = Trading.get_user_info()
+        money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions

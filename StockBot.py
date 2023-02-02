@@ -24,12 +24,15 @@ ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
 
 class Stock:
 
-    def __init__(self, ticker, run, test_ratio=0.2, dataset_size=200, test_lstm=False):
+    def __init__(self, ticker, run, test_ratio=1/400, dataset_size=400, test_lstm=False, data=None):
         self.test_lstm = test_lstm
         self.dataset_size = dataset_size
         self.run = run
         self.ticker = ticker.strip()
-        self.data = self.get_new_data()
+        if data is not None:
+            self.data = data
+        else:
+            self.data = self.get_new_data()
         self.flippedData = self.data.copy().loc[::-1].reset_index(drop=True)
         self.test_ratio = test_ratio
         self.train_ratio = 1 - test_ratio

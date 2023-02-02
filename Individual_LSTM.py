@@ -74,13 +74,14 @@ class IndividualLSTM:
         """
         runs whole LSTM prediction process and saves prediction to object variables
         """
-        cur_epochs = 30
-        cur_batch_size = 32
-        window_size = 50
+        cur_epochs = 31
+        cur_batch_size = 38
+        window_size = 96
+        layer_units = 38
         scaler = StandardScaler()
 
-        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size)
-        model = self.run_lstm(x_train)
+        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size, layer_units=layer_units)
+        model = self.run_lstm(x_train, layer_units=layer_units)
         model.fit(x_train, y_train, epochs=tf.constant(cur_epochs, dtype="int64"), batch_size=tf.constant(cur_batch_size, dtype="int64"), verbose=0, validation_split=0.1, shuffle=True)
         x_test = preprocess_testdata(data=self.flippedData, scaler=scaler, window_size=window_size)
 
@@ -92,10 +93,11 @@ class IndividualLSTM:
         self.predicted_price = predicted_price_array[0][0]
         self.change_price, self.change_percentage = calculate_change(self.flippedData.iloc[-1]['close'], self.predicted_price)
 
-        # log everything to neptune
-        self.run[f"Predictions/{self.ticker}/LSTM/Price"].log(self.predicted_price)
-        self.run[f"Predictions/{self.ticker}/LSTM/Change (%)"].log(self.change_percentage)
-        self.run[f"Predictions/{self.ticker}/LSTM/Change ($)"].log(self.change_price)
+        if self.run is not None:
+            # log everything to neptune
+            self.run[f"Predictions/{self.ticker}/LSTM/Price"].log(self.predicted_price)
+            self.run[f"Predictions/{self.ticker}/LSTM/Change (%)"].log(self.change_percentage)
+            self.run[f"Predictions/{self.ticker}/LSTM/Change ($)"].log(self.change_price)
 
     def lstm_get_train_data(self, stockprices, scaler, layer_units=50, optimizer='adam', cur_epochs=15, cur_batch_size=20, window_size=50):
         """
@@ -114,7 +116,8 @@ class IndividualLSTM:
                          'batch_size': cur_batch_size,
                          'epochs': cur_epochs
                          }
-        self.run['LSTMPars'] = cur_LSTM_pars
+        if self.run is not None:
+            self.run['LSTMPars'] = cur_LSTM_pars
 
         scaled_data = scaler.fit_transform(stockprices[['close']].values)
         scaled_data_train = scaled_data[:self.flippedData.shape[0]]
@@ -122,7 +125,7 @@ class IndividualLSTM:
         x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size, window_size)
         return x_train, y_train
 
-    def run_lstm(self, x_train, layer_units=50, logNeptune=True):
+    def run_lstm(self, x_train, layer_units=50):
         """
         Builds machine learning model
         :param x_train: training set, needed for its shape for input values
@@ -140,7 +143,7 @@ class IndividualLSTM:
 
         model.compile(loss='mean_squared_error', optimizer='adam')
 
-        if logNeptune:
+        if self.run is not None:
             model.summary(print_fn=lambda z: self.run[f"Predictions/{self.ticker}/LSTM/model_summary"].log(z))
 
         return model

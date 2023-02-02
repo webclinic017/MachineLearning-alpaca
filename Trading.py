@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Union
 from robin_stocks import robinhood as r
 import pyotp
@@ -35,6 +36,12 @@ def buy_stock(ticker: str, price: float):
     :return: dict of order id and information
     """
     response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
+    if 'id' not in response:    # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
+    if 'id' not in response:    # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
     return response
 
 
