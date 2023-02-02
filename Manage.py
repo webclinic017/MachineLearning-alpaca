@@ -128,10 +128,12 @@ class Manager:
 
     def run_day(self, trader):
         print(f"starting trade bot at: {datetime.now()}")
+        self.run["status"].log(f"starting trade bot at: {datetime.now()}")
 
         self.stock_prediction_data = self.predict_stock_prices()
 
         print(f"making orders")
+        self.run["status"].log("making orders")
         self.create_orders()
 
         # wait until market is open and then buy all orders for day
@@ -139,6 +141,7 @@ class Manager:
             current_time = datetime.timestamp(datetime.utcnow())
             if current_time > trader.hours[0]:
                 print(f"making trades at: {datetime.now()}")
+                self.run["status"].log(f"making trades at: {datetime.now()}")
                 self.execute_orders(self.orders_for_day)
                 self.orders_for_day = None
                 break
@@ -148,12 +151,14 @@ class Manager:
         time_before_close = int(trader.hours[1] - trader.hours[0])
 
         print(f"bought stocks, sleeping for: {time_before_close - 1200} seconds")
+        self.run["status"].log(f"bought stocks, sleeping for: {time_before_close - 1200} seconds")
 
         time.sleep(int(time_before_close) - 1200)
 
         selling_info = Trading.sell_all_stocks()
         self.record_order_details(selling_info, buying=False)
         print(f"sold stocks at time: {datetime.now()}")
+        self.run["status"].log(f"sold stocks at time: {datetime.now()}")
 
     def create_orders(self):
         stocks_to_invest = []
@@ -198,6 +203,7 @@ class Manager:
             orders.append((stocks_to_invest[i][0], amount))
 
         self.orders_for_day = orders
+        self.run[f"orders_to_buy"].log(orders)
 
     def predict_stock_prices(self):
         """
