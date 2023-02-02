@@ -192,6 +192,10 @@ class Manager:
 
         user_info = Trading.get_user_info()
         money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
+        # limit to 1/3 of spendable money so I can invest each day with settlement periods
+        if money_to_invest * 3 > user_info['equity']:
+            money_to_invest = user_info['equity'] / 3
+
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions
