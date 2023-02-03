@@ -64,7 +64,6 @@ def get_data_to_file(ticker: str, AVT, dataset_size: int):
     except Exception as e:
         print(f"error in getting data for ticker: {ticker}, url: {url}, error: {e}")
         exit(1)
-        return
 
     df.to_csv(f"Data/{ticker}_data.csv")
 
