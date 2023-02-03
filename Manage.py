@@ -126,6 +126,17 @@ class Manager:
                 time.sleep(60)
 
     def run_day(self, trader):
+        if self.run is None:
+            dateTimeObj = datetime.now()
+            self.custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
+            self.run = neptune.init(
+                project="elitheknight/Stock-Prediction",
+                api_token=self.NEPTUNE_API_TOKEN,
+                custom_run_id=self.custom_id,
+                capture_stdout=False,
+                capture_stderr=False,
+                capture_hardware_metrics=False
+            )
         print(f"starting trade bot at: {datetime.now()}")
         self.run["status"].log(f"starting trade bot at: {datetime.now()}")
 
@@ -158,6 +169,7 @@ class Manager:
         self.record_order_details(selling_info, buying=False)
         print(f"sold stocks at time: {datetime.now()}")
         self.run["status"].log(f"sold stocks at time: {datetime.now()}")
+        self.run = None
 
     def create_orders(self):
         stocks_to_invest = []
@@ -191,7 +203,7 @@ class Manager:
 
         user_info = Trading.get_user_info()
         money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
-        # limit to 1/3 of spendable money so I can invest each day with settlement periods
+        # limit to 1/3 of spendable money, so I can invest each day with settlement periods
         if money_to_invest * 3 > user_info['equity']:
             money_to_invest = user_info['equity'] / 3
 
