@@ -253,6 +253,7 @@ class Stock:
         inp = Input(shape=(x_train.shape[1], 1))
 
         x = LSTM(units=layer_units, return_sequences=True)(inp)
+        # x = LSTM(units=layer_units, return_sequences=True)(x)
         x = LSTM(units=layer_units)(x)
 
         out = Dense(1, activation='linear')(x)

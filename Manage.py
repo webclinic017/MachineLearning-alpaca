@@ -30,7 +30,7 @@ def begin(ticker: str, id: str, NAT, AVT):
     )
     stock = IndividualLSTM(ticker, data, run)
     # print(f"{ticker} complete")
-    return ticker, stock.predicted_price, stock.change_price, stock.change_percentage
+    return ticker, stock.open, stock.close
 
 
 def get_data(ticker: str, AVT, dataset_size: int):
@@ -96,6 +96,7 @@ class Manager:
         self.ALPHA_VANTAGE_TOKEN = AVT
         self.orders_for_day = None
         self.stock_prediction_data = None
+        self.sell_for_day = None
         self.schedule()
 
     def schedule(self):
@@ -126,17 +127,6 @@ class Manager:
                 time.sleep(60)
 
     def run_day(self, trader):
-        if self.run is None:
-            dateTimeObj = datetime.now()
-            self.custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
-            self.run = neptune.init(
-                project="elitheknight/Stock-Prediction",
-                api_token=self.NEPTUNE_API_TOKEN,
-                custom_run_id=self.custom_id,
-                capture_stdout=False,
-                capture_stderr=False,
-                capture_hardware_metrics=False
-            )
         print(f"starting trade bot at: {datetime.now()}")
         self.run["status"].log(f"starting trade bot at: {datetime.now()}")
 
@@ -146,33 +136,56 @@ class Manager:
         self.run["status"].log("making orders")
         self.create_orders()
 
-        # wait until market is open and then buy all orders for day
+        buy_open = [i for i in self.orders_for_day if i[2] is True]
+        buy_close = [i for i in self.orders_for_day if i[2] is False]
+
+        sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
+        sell_close = [i for i in self.sell_for_day if i[2] is False] if self.sell_for_day is not None else []
+
+        # wait until market is open and then execute all open orders
         while True:
             current_time = datetime.timestamp(datetime.utcnow())
             if current_time > trader.hours[0]:
                 print(f"making trades at: {datetime.now()}")
                 self.run["status"].log(f"making trades at: {datetime.now()}")
-                self.execute_orders(self.orders_for_day)
-                self.orders_for_day = None
+                self.execute_orders(buy_open)
+                self.execute_orders(sell_open, buying=False)
                 break
             else:
                 time.sleep(60)
 
+        # sleep till close
         time_before_close = int(trader.hours[1] - trader.hours[0])
-
         print(f"bought stocks, sleeping for: {time_before_close - 1200} seconds")
         self.run["status"].log(f"bought stocks, sleeping for: {time_before_close - 1200} seconds")
-
         time.sleep(int(time_before_close) - 1200)
 
-        selling_info = Trading.sell_all_stocks()
-        self.record_order_details(selling_info, buying=False)
-        print(f"sold stocks at time: {datetime.now()}")
-        self.run["status"].log(f"sold stocks at time: {datetime.now()}")
-        self.run = None
+        # execute closing orders
+        print(f"making trades at: {datetime.now()}")
+        self.run["status"].log(f"making trades at: {datetime.now()}")
+        self.execute_orders(buy_close)
+        self.execute_orders(sell_open, buying=False)
+
+        # shift orders to be sold, make orders None
+        self.sell_for_day = [(i[0], None, i[3]) for i in self.orders_for_day]
+        self.orders_for_day = None
+
+        # selling_info = Trading.sell_all_stocks()
+        # self.record_order_details(selling_info, buying=False)
+        # print(f"sold stocks at time: {datetime.now()}")
+        # self.run["status"].log(f"sold stocks at time: {datetime.now()}")
 
     def create_orders(self):
         stocks_to_invest = []
+
+        # find percent change for best buy-sell combo
+        for i in self.stock_prediction_data:
+            buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
+            sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
+            percent_change = sell/buy - 1
+            i.append(percent_change)
+
+        self.stock_prediction_data = sorted(self.stock_prediction_data, key=lambda x: x[3], reverse=True)
 
         # add all positive stocks to list
         for entry in self.stock_prediction_data:
@@ -196,16 +209,17 @@ class Manager:
         for i in indices_to_remove:
             del stocks_to_invest[i]     # remove unstable stocks
 
-        orders = []  # (ticker, $ amount to buy)
+        orders = []  # (ticker, $ amount to buy, buy_open: bool, sell_open: bool) if buy_open/sell_open is false, buy or sell the close
 
         total_percent = sum([percent[3] for percent in stocks_to_invest])
         assert (total_percent > 0)
 
         user_info = Trading.get_user_info()
         money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
-        # limit to 1/3 of spendable money, so I can invest each day with settlement periods
-        if money_to_invest * 3 > float(user_info['equity']):
-            money_to_invest = float(user_info['equity']) / 3
+        # limit to 1/3 of spendable money so I can invest each day with settlement periods
+        # TODO: Delete when I switch back to instant account
+        if money_to_invest * 3 > user_info['equity']:
+            money_to_invest = user_info['equity'] / 3
 
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
@@ -215,7 +229,10 @@ class Manager:
                 floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
                 amount = new_amount
 
-            orders.append((stocks_to_invest[i][0], amount))
+            buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
+            sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
+
+            orders.append((stocks_to_invest[i][0], amount, buy_time, sell_time))
 
         self.orders_for_day = orders
         self.run[f"orders_to_buy"].log(orders)
@@ -253,8 +270,6 @@ class Manager:
             # print(f"delay: {time.time() - start_time}")
             pool.close()
 
-        # sorts the predictions by predicted percent change from highest to lowest
-        stock_predictions = sorted(stock_predictions, key=lambda x: x[3], reverse=True)
         # logs the data to neptune
         self.run[f"all_prediction_data/Data"].log(stock_predictions)
         return stock_predictions
