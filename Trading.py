@@ -45,17 +45,17 @@ def buy_stock(ticker: str, price: float):
     return response
 
 
-def sell_stock(ticker: str, price: float = None):
+def sell_stock_by_quantity(ticker: str, quantity: float = None):
     """
     Sells stock by price
     :param ticker: str, stock symbol to sell
-    :param price: float, amount in $ to sell, if None than it sells all owned stock
+    :param quantity: float, quantity in shares to sell, if None than it sells all owned of that stock
     :return: dict of order id and information
     """
-    if price is None:
+    if quantity is None:
         return r.order_sell_fractional_by_quantity(ticker, r.build_holdings[ticker]['quantity'])
     else:
-        return r.order_sell_fractional_by_price(ticker, price)
+        return r.order_sell_fractional_by_quantity(ticker, quantity)
 
 
 def sell_all_stocks():

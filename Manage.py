@@ -142,14 +142,15 @@ class Manager:
         sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
         sell_close = [i for i in self.sell_for_day if i[2] is False] if self.sell_for_day is not None else []
 
+        bought = []
         # wait until market is open and then execute all open orders
         while True:
             current_time = datetime.timestamp(datetime.utcnow())
             if current_time > trader.hours[0]:
                 print(f"making trades at: {datetime.now()}")
                 self.run["status"].log(f"making trades at: {datetime.now()}")
-                self.execute_orders(buy_open)
                 self.execute_orders(sell_open, buying=False)
+                bought.extend(self.execute_orders(buy_open))
                 break
             else:
                 time.sleep(60)
@@ -163,17 +164,14 @@ class Manager:
         # execute closing orders
         print(f"making trades at: {datetime.now()}")
         self.run["status"].log(f"making trades at: {datetime.now()}")
-        self.execute_orders(buy_close)
         self.execute_orders(sell_close, buying=False)
+        bought.extend(self.execute_orders(buy_close))
 
         # shift orders to be sold, make orders None
-        self.sell_for_day = [(i[0], None, i[3]) for i in self.orders_for_day]
-        self.orders_for_day = None
+        self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
 
-        # selling_info = Trading.sell_all_stocks()
-        # self.record_order_details(selling_info, buying=False)
-        # print(f"sold stocks at time: {datetime.now()}")
-        # self.run["status"].log(f"sold stocks at time: {datetime.now()}")
+        self.sell_for_day = bought
+        self.orders_for_day = None
 
     def create_orders(self):
         stocks_to_invest = []
@@ -182,7 +180,7 @@ class Manager:
         for i in range(len(self.stock_prediction_data)):
             buy = min(self.stock_prediction_data[i][1]['predicted_price'], self.stock_prediction_data[i][2]['predicted_price'])
             sell = max(self.stock_prediction_data[i][1]['second_predicted_price'], self.stock_prediction_data[i][2]['second_predicted_price'])
-            percent_change = (sell/buy - 1,)
+            percent_change = ((sell/buy - 1) * 100,)
             self.stock_prediction_data[i] = self.stock_prediction_data[i] + percent_change
 
         self.stock_prediction_data = sorted(self.stock_prediction_data, key=lambda x: x[3], reverse=True)
@@ -223,7 +221,7 @@ class Manager:
 
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
-            amount = money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions
+            amount = round(money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions, 5)
             if amount / money_to_invest > 0.1:
                 new_amount = money_to_invest * 0.1
                 floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
@@ -293,11 +291,17 @@ class Manager:
         #     time.sleep(120)
 
         details = []
+        results = []
+
         if buying:
             for order in orders:
-                details.append(Trading.buy_stock(ticker=order[0], price=order[1]))
+                detail = Trading.buy_stock(ticker=order[0], price=order[1])
+                details.append(detail)
+                if 'quantity' in detail:
+                    results.append((order[0], detail['quantity'], order[3]))
         else:
             for order in orders:
-                details.append(Trading.sell_stock(ticker=order[0], price=order[1]))
+                details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
 
         self.record_order_details(details, buying=buying)
+        return results
