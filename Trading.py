@@ -120,6 +120,7 @@ class Trader:
         # login
         self.login = r.login(username, password, mfa_code=totp)
         self.hours = check_market_open()
+        self.tomorrow = check_market_tomorrow()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         logout()

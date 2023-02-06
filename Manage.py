@@ -130,6 +130,36 @@ class Manager:
         print(f"starting trade bot at: {datetime.now()}")
         self.run["status"].log(f"starting trade bot at: {datetime.now()}")
 
+        if trader.tomorrow is None:  # then today is friday or holiday the next day so sell all stocks to clean up
+            print(f"stock market is not open tomorrow, selling all stocks at close to clean up")
+            self.run["status"].log(f"stock market is not open tomorrow, selling all stocks at close to clean up")
+
+            sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
+
+            while True:
+                current_time = datetime.timestamp(datetime.utcnow())
+                if current_time > trader.hours[0]:
+                    print(f"making trades at: {datetime.now()}")
+                    self.run["status"].log(f"making trades at: {datetime.now()}")
+                    self.execute_orders(sell_open, buying=False)
+                    break
+                else:
+                    time.sleep(60)
+
+            # sleep till close
+            time_before_close = int(trader.hours[1] - trader.hours[0])
+            print(f"sold stocks, sleeping for: {time_before_close - 1200} seconds")
+            self.run["status"].log(f"sold stocks, sleeping for: {time_before_close - 1200} seconds")
+            time.sleep(int(time_before_close) - 1200)
+
+            print(f"selling all stocks at: {datetime.now()}")
+            self.run["status"].log(f"selling all stocks at: {datetime.now()}")
+            self.record_order_details(Trading.sell_all_stocks(), buying=False)
+
+            self.orders_for_day = None
+            self.sell_for_day = None
+            return
+
         self.stock_prediction_data = self.predict_stock_prices()
 
         print(f"making orders")
@@ -169,7 +199,6 @@ class Manager:
 
         # shift orders to be sold, make orders None
         self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
-
         self.sell_for_day = bought
         self.orders_for_day = None
 
