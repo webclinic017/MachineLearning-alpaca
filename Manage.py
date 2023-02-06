@@ -179,11 +179,11 @@ class Manager:
         stocks_to_invest = []
 
         # find percent change for best buy-sell combo
-        for i in self.stock_prediction_data:
-            buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
-            sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
-            percent_change = sell/buy - 1
-            i.append(percent_change)
+        for i in range(len(self.stock_prediction_data)):
+            buy = min(self.stock_prediction_data[i][1]['predicted_price'], self.stock_prediction_data[i][2]['predicted_price'])
+            sell = max(self.stock_prediction_data[i][1]['second_predicted_price'], self.stock_prediction_data[i][2]['second_predicted_price'])
+            percent_change = (sell/buy - 1,)
+            self.stock_prediction_data[i] = self.stock_prediction_data[i] + percent_change
 
         self.stock_prediction_data = sorted(self.stock_prediction_data, key=lambda x: x[3], reverse=True)
 
