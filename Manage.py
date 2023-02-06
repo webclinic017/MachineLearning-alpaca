@@ -164,7 +164,7 @@ class Manager:
         print(f"making trades at: {datetime.now()}")
         self.run["status"].log(f"making trades at: {datetime.now()}")
         self.execute_orders(buy_close)
-        self.execute_orders(sell_open, buying=False)
+        self.execute_orders(sell_close, buying=False)
 
         # shift orders to be sold, make orders None
         self.sell_for_day = [(i[0], None, i[3]) for i in self.orders_for_day]
