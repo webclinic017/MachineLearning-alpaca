@@ -164,7 +164,7 @@ class Manager:
 
         print(f"making orders")
         self.run["status"].log("making orders")
-        self.create_orders()
+        self.orders_for_day = self.create_orders()
 
         buy_open = [i for i in self.orders_for_day if i[2] is True]
         buy_close = [i for i in self.orders_for_day if i[2] is False]
@@ -245,8 +245,8 @@ class Manager:
         money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
         # limit to 1/3 of spendable money so I can invest each day with settlement periods
         # TODO: Delete when I switch back to instant account
-        if money_to_invest * 3 > user_info['equity']:
-            money_to_invest = user_info['equity'] / 3
+        if money_to_invest * 3 > float(user_info['equity']):
+            money_to_invest = float(user_info['equity']) / 3
 
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
@@ -261,8 +261,8 @@ class Manager:
 
             orders.append((stocks_to_invest[i][0], amount, buy_time, sell_time))
 
-        self.orders_for_day = orders
         self.run[f"orders_to_buy"].log(orders)
+        return orders
 
     def predict_stock_prices(self):
         """
