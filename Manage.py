@@ -223,7 +223,6 @@ class Manager:
         self.run = None
         self.custom_id = None
 
-
     def create_orders(self):
         stocks_to_invest = []
 
@@ -353,6 +352,11 @@ class Manager:
         else:
             for order in orders:
                 details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
+
+        if not results:
+            print("warning - order execution results are empty")
+            self.run["status"].log("warning - order execution results are empty")
+            return results
 
         self.record_order_details(details, buying=buying)
         return results
