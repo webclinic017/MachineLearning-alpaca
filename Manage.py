@@ -127,6 +127,18 @@ class Manager:
                 time.sleep(60)
 
     def run_day(self, trader):
+        if self.run is None:
+            dateTimeObj = datetime.now()
+            self.custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
+            self.run = neptune.init(
+                project="elitheknight/Stock-Prediction",
+                api_token=self.NEPTUNE_API_TOKEN,
+                custom_run_id=self.custom_id,
+                capture_stdout=False,
+                capture_stderr=False,
+                capture_hardware_metrics=False
+            )
+
         print(f"starting trade bot at: {datetime.now()}")
         self.run["status"].log(f"starting trade bot at: {datetime.now()}")
 
@@ -179,8 +191,10 @@ class Manager:
             if current_time > trader.hours[0]:
                 print(f"making trades at: {datetime.now()}")
                 self.run["status"].log(f"making trades at: {datetime.now()}")
-                self.execute_orders(sell_open, buying=False)
-                bought.extend(self.execute_orders(buy_open))
+                if sell_open:
+                    self.execute_orders(sell_open, buying=False)
+                if buy_open:
+                    bought.extend(self.execute_orders(buy_open))
                 break
             else:
                 time.sleep(60)
@@ -194,13 +208,21 @@ class Manager:
         # execute closing orders
         print(f"making trades at: {datetime.now()}")
         self.run["status"].log(f"making trades at: {datetime.now()}")
-        self.execute_orders(sell_close, buying=False)
-        bought.extend(self.execute_orders(buy_close))
+        if sell_close:
+            self.execute_orders(sell_close, buying=False)
+        if buy_close:
+            bought.extend(self.execute_orders(buy_close))
 
         # shift orders to be sold, make orders None
         self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
         self.sell_for_day = bought
         self.orders_for_day = None
+        self.run["status"].log("shutting down for the day")
+
+        self.run.stop()
+        self.run = None
+        self.custom_id = None
+
 
     def create_orders(self):
         stocks_to_invest = []
