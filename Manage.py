@@ -181,8 +181,14 @@ class Manager:
         buy_open = [i for i in self.orders_for_day if i[2] is True]
         buy_close = [i for i in self.orders_for_day if i[2] is False]
 
+        self.run["orders/buy_open"].log(buy_open)
+        self.run["orders/buy_close"].log(buy_close)
+
         sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
         sell_close = [i for i in self.sell_for_day if i[2] is False] if self.sell_for_day is not None else []
+
+        self.run["orders/sell_open"].log(sell_open)
+        self.run["orders/sell_close"].log(sell_close)
 
         bought = []
         # wait until market is open and then execute all open orders
@@ -214,7 +220,8 @@ class Manager:
             bought.extend(self.execute_orders(buy_close))
 
         # shift orders to be sold, make orders None
-        self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
+        if bought:
+            self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
         self.sell_for_day = bought
         self.orders_for_day = None
         self.run["status"].log("shutting down for the day")
@@ -349,6 +356,7 @@ class Manager:
                 details.append(detail)
                 if 'quantity' in detail:
                     results.append((order[0], detail['quantity'], order[3]))
+                print(f"bought: {detail}")
         else:
             for order in orders:
                 details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
@@ -359,4 +367,6 @@ class Manager:
             return results
 
         self.record_order_details(details, buying=buying)
+        print(f"results:\n{results}")
+
         return results

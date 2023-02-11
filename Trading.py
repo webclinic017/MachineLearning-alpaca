@@ -42,6 +42,7 @@ def buy_stock(ticker: str, price: float):
     if 'id' not in response:    # try again if didn't work
         time.sleep(5)
         response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price, timeInForce='GFD')
+
     return response
 
 
