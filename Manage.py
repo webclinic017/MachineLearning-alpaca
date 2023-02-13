@@ -223,7 +223,6 @@ class Manager:
         self.run = None
         self.custom_id = None
 
-
     def create_orders(self):
         stocks_to_invest = []
 
@@ -264,11 +263,7 @@ class Manager:
         assert (total_percent > 0)
 
         user_info = Trading.get_user_info()
-        money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
-        # limit to 1/3 of spendable money so I can invest each day with settlement periods
-        # TODO: Delete when I switch back to instant account
-        if money_to_invest * 3 > float(user_info['equity']):
-            money_to_invest = float(user_info['equity']) / 3
+        money_to_invest = float(user_info['equity'])     # money in robinhood
 
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
