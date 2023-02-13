@@ -179,10 +179,32 @@ class Manager:
         self.orders_for_day = self.create_orders()
 
         buy_open = [i for i in self.orders_for_day if i[2] is True]
+        print(f"buy open: {buy_open}")
         buy_close = [i for i in self.orders_for_day if i[2] is False]
+        print(f"buy close: {buy_close}")
+
+        if buy_open:
+            self.run["orders/buy_open"].log(buy_open)
+        else:
+            self.run["orders/buy_open"].log(f"No open orders")
+        if buy_close:
+            self.run["orders/buy_close"].log(buy_close)
+        else:
+            self.run["orders/buy_close"].log(f"No close orders")
 
         sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
+        print(f"sell open: {sell_open}")
         sell_close = [i for i in self.sell_for_day if i[2] is False] if self.sell_for_day is not None else []
+        print(f"sell close: {sell_close}")
+
+        if sell_open:
+            self.run["orders/sell_open"].log(sell_open)
+        else:
+            self.run["orders/sell_open"].log(f"No open sell orders")
+        if sell_close:
+            self.run["orders/sell_close"].log(sell_close)
+        else:
+            self.run["orders/sell_close"].log(f"No close sell orders")
 
         bought = []
         # wait until market is open and then execute all open orders
@@ -192,9 +214,11 @@ class Manager:
                 print(f"making trades at: {datetime.now()}")
                 self.run["status"].log(f"making trades at: {datetime.now()}")
                 if sell_open:
+                    print(f"SELLING OPEN")
                     self.execute_orders(sell_open, buying=False)
                 if buy_open:
                     bought.extend(self.execute_orders(buy_open))
+                    print(f"BUYING OPEN")
                 break
             else:
                 time.sleep(60)
@@ -214,7 +238,8 @@ class Manager:
             bought.extend(self.execute_orders(buy_close))
 
         # shift orders to be sold, make orders None
-        self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
+        if bought:
+            self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
         self.sell_for_day = bought
         self.orders_for_day = None
         self.run["status"].log("shutting down for the day")
@@ -263,7 +288,11 @@ class Manager:
         assert (total_percent > 0)
 
         user_info = Trading.get_user_info()
-        money_to_invest = float(user_info['equity'])     # money in robinhood
+        money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
+        # limit to 1/3 of spendable money so I can invest each day with settlement periods
+        # TODO: Delete when I switch back to instant account
+        if money_to_invest * 3 > float(user_info['equity']):
+            money_to_invest = float(user_info['equity']) / 3
 
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
@@ -345,9 +374,17 @@ class Manager:
                 details.append(detail)
                 if 'quantity' in detail:
                     results.append((order[0], detail['quantity'], order[3]))
+                print(f"bought: {detail}")
         else:
             for order in orders:
                 details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
 
+        if not results:
+            print("warning - order execution results are empty")
+            self.run["status"].log("warning - order execution results are empty")
+            return results
+
         self.record_order_details(details, buying=buying)
+        print(f"results:\n{results}")
+
         return results
