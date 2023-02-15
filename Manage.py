@@ -294,12 +294,9 @@ class Manager:
         assert (total_percent > 0)
 
         user_info = Trading.get_user_info()
-        money_to_invest = float(user_info['cash']) if 'cash' in user_info else float(user_info['equity'])     # money in robinhood
-        # limit to 1/3 of spendable money so I can invest each day with settlement periods
-        # TODO: Delete when I switch back to instant account
-        if money_to_invest * 3 > float(user_info['equity']):
-            money_to_invest = float(user_info['equity']) / 3
+        money_to_invest = float(user_info['equity'])     # money in robinhood
 
+        remaining_money = money_to_invest
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = round(money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions, 5)
@@ -307,7 +304,13 @@ class Manager:
                 new_amount = money_to_invest * 0.1
                 floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
                 amount = new_amount
+            elif amount < 1:
+                amount = 1
 
+            if amount > remaining_money:
+                break
+            else:
+                remaining_money -= amount
             buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
             sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
 
@@ -331,6 +334,7 @@ class Manager:
 
         tickers_to_run = listOfTickers.copy()
         if test:
+            # if I'm testion, I have to add a 0, in the list in Individual_LSTM when adding to the dataframe, line 122
             stock_predictions = []
             # for i in range(len(listOfTickers) // 4):
             for i in range(1):
