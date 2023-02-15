@@ -310,6 +310,8 @@ class Manager:
             if amount > remaining_money:
                 break
 
+            remaining_money -= amount
+
             buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
             sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
 
