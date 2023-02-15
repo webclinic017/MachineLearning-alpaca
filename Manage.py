@@ -9,7 +9,7 @@ from datetime import datetime, date
 from threading import Timer
 
 
-def begin(ticker: str, id: str, NAT, AVT):
+def begin(ticker: str, id: str, NAT, AVT, test=False):
     """
     function multiprocessing processes run. Makes an IndividualLSTM object and runs stock predictions
     :param ticker: str, ticker of stock to predict
@@ -18,8 +18,6 @@ def begin(ticker: str, id: str, NAT, AVT):
     :param AVT: AlphaVantage Token
     :return: stock prediction data for the next day: tuple(ticker, predicted_price, change_price, change_percent)
     """
-    dataset_size = 400
-    data = get_data_to_file(ticker, AVT, dataset_size)
     run = neptune.init(
         project="elitheknight/Stock-Prediction",
         api_token=NAT,
@@ -28,6 +26,11 @@ def begin(ticker: str, id: str, NAT, AVT):
         capture_stderr=False,
         capture_hardware_metrics=False
     )
+    if not test:
+        dataset_size = 400
+        data = get_data_to_file(ticker, AVT, dataset_size)
+    else:
+        data = pandas.read_csv(f"Data/{ticker}_data.csv")
     stock = IndividualLSTM(ticker, data, run)
     # print(f"{ticker} complete")
     return ticker, stock.open, stock.close
@@ -177,10 +180,13 @@ class Manager:
         print(f"making orders")
         self.run["status"].log("making orders")
         self.orders_for_day = self.create_orders()
+        print([i for i in self.orders_for_day])
+        print(self.orders_for_day[0])
+        print((not self.orders_for_day[0][2]))
 
-        buy_open = [i for i in self.orders_for_day if i[2] is True]
+        buy_open = [i for i in self.orders_for_day if i[2]]
         print(f"buy open: {buy_open}")
-        buy_close = [i for i in self.orders_for_day if i[2] is False]
+        buy_close = [i for i in self.orders_for_day if not i[2]]
         print(f"buy close: {buy_close}")
 
         if buy_open:
@@ -192,9 +198,9 @@ class Manager:
         else:
             self.run["orders/buy_close"].log(f"No close orders")
 
-        sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
+        sell_open = [i for i in self.sell_for_day if i[2]] if self.sell_for_day is not None else []
         print(f"sell open: {sell_open}")
-        sell_close = [i for i in self.sell_for_day if i[2] is False] if self.sell_for_day is not None else []
+        sell_close = [i for i in self.sell_for_day if not i[2]] if self.sell_for_day is not None else []
         print(f"sell close: {sell_close}")
 
         if sell_open:
@@ -310,7 +316,7 @@ class Manager:
         self.run[f"orders_to_buy"].log(orders)
         return orders
 
-    def predict_stock_prices(self):
+    def predict_stock_prices(self, test: bool = False):
         """
         Loads tickers.txt list of stock tickers and creates Individual_LSTM objects
         to predict next day stock prices and divides the tasks among a processing pool
@@ -324,6 +330,20 @@ class Manager:
                          line.strip() not in blacklist]
 
         tickers_to_run = listOfTickers.copy()
+        if test:
+            stock_predictions = []
+            # for i in range(len(listOfTickers) // 4):
+            for i in range(1):
+                pool = Pool(processes=4)
+                result = pool.starmap_async(begin, tickers_to_run[:4])
+                tickers_to_run = tickers_to_run[4:]
+                results = result.get()
+                stock_predictions.extend(results)
+                pool.close()
+
+            print(stock_predictions)
+            return stock_predictions
+
         num_processes = 4
         num_tickers = len(listOfTickers)
         groups = num_tickers // num_processes + 1
