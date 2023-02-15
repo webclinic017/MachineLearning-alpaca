@@ -149,7 +149,7 @@ class Manager:
             print(f"stock market is not open tomorrow, selling all stocks at close to clean up")
             self.run["status"].log(f"stock market is not open tomorrow, selling all stocks at close to clean up")
 
-            sell_open = [i for i in self.sell_for_day if i[2] is True] if self.sell_for_day is not None else []
+            sell_open = [i for i in self.sell_for_day if i[2]] if self.sell_for_day is not None else []
 
             while True:
                 current_time = datetime.timestamp(datetime.utcnow())
@@ -296,7 +296,6 @@ class Manager:
         user_info = Trading.get_user_info()
         money_to_invest = float(user_info['equity'])     # money in robinhood
 
-        remaining_money = money_to_invest
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = round(money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions, 5)
@@ -304,13 +303,7 @@ class Manager:
                 new_amount = money_to_invest * 0.1
                 floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
                 amount = new_amount
-            elif amount < 1:
-                amount = 1
 
-            if amount > remaining_money:
-                break
-            else:
-                remaining_money -= amount
             buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
             sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
 
@@ -334,7 +327,6 @@ class Manager:
 
         tickers_to_run = listOfTickers.copy()
         if test:
-            # if I'm testion, I have to add a 0, in the list in Individual_LSTM when adding to the dataframe, line 122
             stock_predictions = []
             # for i in range(len(listOfTickers) // 4):
             for i in range(1):
