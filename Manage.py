@@ -296,6 +296,7 @@ class Manager:
         user_info = Trading.get_user_info()
         money_to_invest = float(user_info['equity'])     # money in robinhood
 
+        remaining_money = money_to_invest
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
         for i in range(len(stocks_to_invest)):
             amount = round(money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions, 5)
@@ -303,6 +304,11 @@ class Manager:
                 new_amount = money_to_invest * 0.1
                 floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
                 amount = new_amount
+            if amount < 1.00:
+                amount = 1.00
+
+            if amount > remaining_money:
+                break
 
             buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
             sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
