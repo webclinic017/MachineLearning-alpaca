@@ -399,9 +399,11 @@ class Manager:
                 if 'quantity' in detail:
                     results.append((order[0], detail['quantity'], order[3]))
                 print(f"bought: {detail}")
+                time.sleep(10)
         else:
             for order in orders:
                 details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
+                time.sleep(10)
 
         if not results:
             print("warning - order execution results are empty")
