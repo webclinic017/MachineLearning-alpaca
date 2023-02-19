@@ -67,10 +67,12 @@ def sell_all_stocks():
     details = []
     for stock, info in r.build_holdings().items():
         details.append(r.order_sell_fractional_by_quantity(stock, info['quantity']))
+        time.sleep(10)
     return details
 
 
 def get_last_close_price(tickers: Union[str, list]):
+    assert len(tickers) > 0
     closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
     assert(isinstance(closes, list))
     days = len(closes)//len(tickers)
@@ -82,7 +84,7 @@ def check_market_open():
     today = str(date.today())
     market_data = r.markets.get_market_hours('XNYS', today)
 
-    if not market_data['is_open']:
+    if False and not market_data['is_open']:
         print(f"The New York Stock Exchange is NOT open today: {today}, logging out")
         logout()
         return None
@@ -120,8 +122,10 @@ class Trader:
 
         # login
         self.login = r.login(username, password, mfa_code=totp)
-        self.hours = check_market_open()
-        self.tomorrow = check_market_tomorrow()
+        # self.hours = check_market_open()
+        self.hours = (1, 2)
+        # self.tomorrow = check_market_tomorrow()
+        self.tomorrow = (1, 2)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         logout()

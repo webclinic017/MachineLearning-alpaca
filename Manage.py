@@ -6,7 +6,7 @@ from Individual_LSTM import IndividualLSTM
 from Trading import Trader
 import Trading
 from datetime import datetime, date
-from threading import Timer
+from finvizfinance.quote import finvizfinance
 
 
 def begin(ticker: str, id: str, NAT, AVT, test=False):
@@ -100,6 +100,7 @@ class Manager:
         self.orders_for_day = None
         self.stock_prediction_data = None
         self.sell_for_day = None
+        self.owned_stocks = []
         self.schedule()
 
     def schedule(self):
@@ -149,7 +150,7 @@ class Manager:
             print(f"stock market is not open tomorrow, selling all stocks at close to clean up")
             self.run["status"].log(f"stock market is not open tomorrow, selling all stocks at close to clean up")
 
-            sell_open = [i for i in self.sell_for_day if i[2]] if self.sell_for_day is not None else []
+            sell_open = [i for i in self.sell_for_day.values() if i[2]] if self.sell_for_day is not None else []
 
             while True:
                 current_time = datetime.timestamp(datetime.utcnow())
@@ -175,18 +176,46 @@ class Manager:
             self.sell_for_day = None
             return
 
+        # may have to change line 122 of individual_lstm for testing, it's temperamental
         self.stock_prediction_data = self.predict_stock_prices()
 
         print(f"making orders")
         self.run["status"].log("making orders")
         self.orders_for_day = self.create_orders()
-        print([i for i in self.orders_for_day])
-        print(self.orders_for_day[0])
-        print((not self.orders_for_day[0][2]))
+        bought = []
 
-        buy_open = [i for i in self.orders_for_day if i[2]]
+        stocks_to_buy = set(self.orders_for_day.keys()) if self.orders_for_day is not None else set()
+        stocks_to_sell = set(self.sell_for_day.keys()) if self.sell_for_day is not None else set()
+
+        if stocks_to_sell and stocks_to_buy:
+            buying_and_selling = stocks_to_buy.union(stocks_to_sell)
+        else:
+            buying_and_selling = set()
+
+        # combines buying and selling orders for the same stock on the same day to one buy or sell to avoid being marked as a pattern day trader
+        for stock in buying_and_selling:
+            buy_tuple = self.orders_for_day[stock]
+            sell_tuple = self.sell_for_day[stock]
+            stock_price = Trading.get_stocks_current_price(stock)[0]
+            net_amount = buy_tuple[1] - (sell_tuple[1] * stock_price)
+            if net_amount > 0:
+                new_tuple = (stock, net_amount, buy_tuple[2], buy_tuple[3])
+                self.orders_for_day[stock] = new_tuple
+                del self.sell_for_day[stock]
+            elif net_amount < 0:
+                sell_quantity = net_amount*-1/stock_price
+                new_tuple = (stock, sell_quantity, sell_tuple[2])
+                self.sell_for_day[stock] = new_tuple
+                del self.orders_for_day[stock]
+                tomorrow_sell_tuple = (stock, round(sell_tuple[1]-sell_quantity, 5), buy_tuple[3])
+                bought.extend(tomorrow_sell_tuple)
+            else:
+                del self.sell_for_day[stock]
+                del self.orders_for_day[stock]
+
+        buy_open = [i for i in self.orders_for_day.values() if i[2]]
         print(f"buy open: {buy_open}")
-        buy_close = [i for i in self.orders_for_day if not i[2]]
+        buy_close = [i for i in self.orders_for_day.values() if not i[2]]
         print(f"buy close: {buy_close}")
 
         if buy_open:
@@ -198,9 +227,9 @@ class Manager:
         else:
             self.run["orders/buy_close"].log(f"No close orders")
 
-        sell_open = [i for i in self.sell_for_day if i[2]] if self.sell_for_day is not None else []
+        sell_open = [i for i in self.sell_for_day.values() if i[2]] if self.sell_for_day is not None else []
         print(f"sell open: {sell_open}")
-        sell_close = [i for i in self.sell_for_day if not i[2]] if self.sell_for_day is not None else []
+        sell_close = [i for i in self.sell_for_day.values() if not i[2]] if self.sell_for_day is not None else []
         print(f"sell close: {sell_close}")
 
         if sell_open:
@@ -212,7 +241,6 @@ class Manager:
         else:
             self.run["orders/sell_close"].log(f"No close sell orders")
 
-        bought = []
         # wait until market is open and then execute all open orders
         while True:
             current_time = datetime.timestamp(datetime.utcnow())
@@ -246,7 +274,9 @@ class Manager:
         # shift orders to be sold, make orders None
         if bought:
             self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
-        self.sell_for_day = bought
+
+        bought_as_dict = {i[0]: i for i in bought}
+        self.sell_for_day = bought_as_dict
         self.orders_for_day = None
         self.run["status"].log("shutting down for the day")
 
@@ -258,22 +288,21 @@ class Manager:
         stocks_to_invest = []
 
         # find percent change for best buy-sell combo
-        for i in range(len(self.stock_prediction_data)):
-            buy = min(self.stock_prediction_data[i][1]['predicted_price'], self.stock_prediction_data[i][2]['predicted_price'])
-            sell = max(self.stock_prediction_data[i][1]['second_predicted_price'], self.stock_prediction_data[i][2]['second_predicted_price'])
+        for ticker, i in self.stock_prediction_data.items():
+            buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
+            sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
             percent_change = ((sell/buy - 1) * 100,)
-            self.stock_prediction_data[i] = self.stock_prediction_data[i] + percent_change
+            self.stock_prediction_data[ticker] = self.stock_prediction_data[ticker] + percent_change
 
-        self.stock_prediction_data = sorted(self.stock_prediction_data, key=lambda x: x[3], reverse=True)
+        self.stock_prediction_data = dict(sorted(self.stock_prediction_data.items(), key=lambda x: x[1][3], reverse=True))
 
         # add all positive stocks to list
-        for entry in self.stock_prediction_data:
+        for ticker, entry in self.stock_prediction_data.items():
             if entry[3] <= 0:
                 break
             stocks_to_invest.append(entry)
 
         stocks_to_invest = stocks_to_invest[:int(len(stocks_to_invest) * 2 / 3)]  # take top 2/3 of positive stocks
-
         tickers = [entry[0] for entry in stocks_to_invest]
         previous_close_prices = Trading.get_last_close_price(tickers)
         current_prices = Trading.get_stocks_current_price(tickers)
@@ -317,8 +346,9 @@ class Manager:
 
             orders.append((stocks_to_invest[i][0], amount, buy_time, sell_time))
 
-        self.run[f"orders_to_buy"].log(orders)
-        return orders
+        orders_as_dict = {i[0]: i for i in orders}
+        self.run[f"orders_to_buy"].log(orders_as_dict)
+        return orders_as_dict
 
     def predict_stock_prices(self, test: bool = False):
         """
@@ -339,14 +369,16 @@ class Manager:
             # for i in range(len(listOfTickers) // 4):
             for i in range(1):
                 pool = Pool(processes=4)
-                result = pool.starmap_async(begin, tickers_to_run[:4])
+                result = pool.starmap_async(begin, tickers_to_run[4:8])
                 tickers_to_run = tickers_to_run[4:]
                 results = result.get()
                 stock_predictions.extend(results)
                 pool.close()
 
-            print(stock_predictions)
-            return stock_predictions
+            stock_dict_predictions = {i[0]: i for i in stock_predictions}
+
+            print(stock_dict_predictions)
+            return stock_dict_predictions
 
         num_processes = 4
         num_tickers = len(listOfTickers)
@@ -369,7 +401,12 @@ class Manager:
 
         # logs the data to neptune
         self.run[f"all_prediction_data/Data"].log(stock_predictions)
-        return stock_predictions
+
+        # change predictions to dictionary {ticker: (ticker, open, close)}
+
+        stock_dict_predictions = {i[0]: i for i in stock_predictions}
+
+        return stock_dict_predictions
 
     def record_order_details(self, records, buying: bool):
         if buying:
@@ -414,3 +451,5 @@ class Manager:
         print(f"results:\n{results}")
 
         return results
+
+    # def get_news(self):
