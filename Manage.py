@@ -119,6 +119,9 @@ class Manager:
                     time.sleep(23*3600)
                     continue
                 self.run_day(trader)
+
+                Trading.logout()
+                del trader
                 print(f"sleeping for{3601} seconds")
                 time.sleep(3601)
             elif hr > 8:
@@ -174,6 +177,11 @@ class Manager:
 
             self.orders_for_day = None
             self.sell_for_day = None
+            self.run["status"].log("shutting down for the day")
+
+            self.run.stop()
+            self.run = None
+            self.custom_id = None
             return
 
         # may have to change line 122 of individual_lstm for testing, it's temperamental
