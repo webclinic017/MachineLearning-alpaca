@@ -84,9 +84,8 @@ def check_market_open():
     today = str(date.today())
     market_data = r.markets.get_market_hours('XNYS', today)
 
-    if False and not market_data['is_open']:
-        print(f"The New York Stock Exchange is NOT open today: {today}, logging out")
-        logout()
+    if not market_data['is_open']:
+        print(f"The New York Stock Exchange is NOT open today: {today}")
         return None
 
     opens = datetime.timestamp(datetime.strptime(market_data['opens_at'], "%Y-%m-%dT%H:%M:%SZ"))
@@ -122,10 +121,8 @@ class Trader:
 
         # login
         self.login = r.login(username, password, mfa_code=totp)
-        # self.hours = check_market_open()
-        self.hours = (1, 2)
-        # self.tomorrow = check_market_tomorrow()
-        self.tomorrow = (1, 2)
+        self.hours = check_market_open()
+        self.tomorrow = check_market_tomorrow()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         logout()

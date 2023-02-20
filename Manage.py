@@ -331,7 +331,11 @@ class Manager:
         assert (total_percent > 0)
 
         user_info = Trading.get_user_info()
-        money_to_invest = float(user_info['equity'])     # money in robinhood
+        # TODO: get rid of the line below, only because it didn't sell last friday and I don't want it to only use $8
+        if datetime.today().weekday() == 0:
+            money_to_invest = float(user_info['equity'])     # money in robinhood
+        else:
+            money_to_invest = float(user_info['cash'])      # money not invested in robinhood
 
         remaining_money = money_to_invest
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
