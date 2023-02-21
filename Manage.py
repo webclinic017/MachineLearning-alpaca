@@ -332,7 +332,7 @@ class Manager:
 
         user_info = Trading.get_user_info()
         # TODO: get rid of the line below, only because it didn't sell last friday and I don't want it to only use $8
-        if datetime.today().weekday() == 0:
+        if datetime.today().weekday() == 1:
             money_to_invest = float(user_info['equity'])     # money in robinhood
         else:
             money_to_invest = float(user_info['cash'])      # money not invested in robinhood
