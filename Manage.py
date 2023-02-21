@@ -157,7 +157,8 @@ class Manager:
 
             while True:
                 current_time = datetime.timestamp(datetime.utcnow())
-                if current_time > trader.hours[0]:
+                # TODO: get rid of + 60, just to give last stocks time to sell due to previous error
+                if current_time > trader.hours[0] + 60:
                     print(f"making trades at: {datetime.now()}")
                     self.run["status"].log(f"making trades at: {datetime.now()}")
                     self.execute_orders(sell_open, buying=False)
