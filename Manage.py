@@ -176,6 +176,7 @@ class Manager:
             self.run["status"].log(f"selling all stocks at: {datetime.now()}")
             self.record_order_details(Trading.sell_all_stocks(), buying=False)
 
+            self.open_sell_amount = 0
             self.orders_for_day = None
             self.sell_for_day = None
             self.run["status"].log("shutting down for the day")
