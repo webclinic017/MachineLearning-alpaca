@@ -100,6 +100,7 @@ class Manager:
         self.orders_for_day = None
         self.stock_prediction_data = None
         self.sell_for_day = None
+        self.open_sell_amount = 0
         self.owned_stocks = []
         self.schedule()
 
@@ -115,20 +116,20 @@ class Manager:
             if hr == 8:
                 trader = start_trader()
                 if trader is None:
-                    print(f"sleeping for{23*3600} seconds")
+                    print(f"sleeping for {23*3600} seconds")
                     time.sleep(23*3600)
                     continue
                 self.run_day(trader)
 
                 Trading.logout()
                 del trader
-                print(f"sleeping for{3601} seconds")
+                print(f"sleeping for {3601} seconds")
                 time.sleep(3601)
             elif hr > 8:
-                print(f"sleeping for{(31-hr)*3600} seconds")
+                print(f"sleeping for {(31-hr)*3600} seconds")
                 time.sleep((31-hr)*3600)
             elif hr < 7:
-                print(f"sleeping for{3600} seconds")
+                print(f"sleeping for {3600} seconds")
                 time.sleep(3600)
             else:
                 time.sleep(60)
@@ -157,7 +158,6 @@ class Manager:
 
             while True:
                 current_time = datetime.timestamp(datetime.utcnow())
-                # TODO: get rid of + 60, just to give last stocks time to sell due to previous error
                 if current_time > trader.hours[0] + 60:
                     print(f"making trades at: {datetime.now()}")
                     self.run["status"].log(f"making trades at: {datetime.now()}")
@@ -284,7 +284,15 @@ class Manager:
         if bought:
             self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
 
+        open_sell = 0
+        stock_current_prices = Trading.get_stocks_current_price([i[0] for i in bought])
+        for i in range(len(bought)):
+            if bought[i][2]:
+                open_sell += stock_current_prices[i] * bought[i][1]
+        self.open_sell_amount = open_sell
+
         bought_as_dict = {i[0]: i for i in bought}
+
         self.sell_for_day = bought_as_dict
         self.orders_for_day = None
         self.run["status"].log("shutting down for the day")
@@ -294,57 +302,47 @@ class Manager:
         self.custom_id = None
 
     def create_orders(self):
-        stocks_to_invest = []
+        stocks_to_invest = []   # (ticker, percent_change, buy_open, sell_open)
 
         # find percent change for best buy-sell combo
         for ticker, i in self.stock_prediction_data.items():
             buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
             sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
-            percent_change = ((sell/buy - 1) * 100,)
-            self.stock_prediction_data[ticker] = self.stock_prediction_data[ticker] + percent_change
+            percent_change = (sell/buy - 1) * 100
+            if percent_change < 0:
+                continue
+            sell_open = i[1]['second_predicted_price'] > i[2]['second_predicted_price']
+            buy_open = i[1]['predicted_price'] < i[2]['predicted_price']
+            stocks_to_invest.append((ticker, percent_change, buy_open, sell_open))
 
-        self.stock_prediction_data = dict(sorted(self.stock_prediction_data.items(), key=lambda x: x[1][3], reverse=True))
-
-        # add all positive stocks to list
-        for ticker, entry in self.stock_prediction_data.items():
-            if entry[3] <= 0:
-                break
-            stocks_to_invest.append(entry)
-
+        stocks_to_invest = sorted(stocks_to_invest, key=lambda x: x[1], reverse=True)
         stocks_to_invest = stocks_to_invest[:int(len(stocks_to_invest) * 2 / 3)]  # take top 2/3 of positive stocks
-        tickers = [entry[0] for entry in stocks_to_invest]
-        previous_close_prices = Trading.get_last_close_price(tickers)
-        current_prices = Trading.get_stocks_current_price(tickers)
-        assert (len(current_prices) == len(previous_close_prices) == len(tickers))
 
-        indices_to_remove = []
-        for i in range(len(tickers)):
-            if max(float(previous_close_prices[i]), float(current_prices[i])) / min(float(previous_close_prices[i]), float(current_prices[i])) > \
-                    stocks_to_invest[i][3]:
-                indices_to_remove.insert(0, i)      # too much activity since last close, prediction might not still be accurate
-
-        for i in indices_to_remove:
-            del stocks_to_invest[i]     # remove unstable stocks
+        if not stocks_to_invest:
+            self.run["status"].log("ERROR - stocks_to_invest is empty")
+            return {}
+        self.run["stocks_to_invest (ticker, percent_change, buy_open, sell_open)"].log(stocks_to_invest)
 
         orders = []  # (ticker, $ amount to buy, buy_open: bool, sell_open: bool) if buy_open/sell_open is false, buy or sell the close
-
-        total_percent = sum([percent[3] for percent in stocks_to_invest])
-        assert (total_percent > 0)
+        open_stocks_to_invest = [i for i in stocks_to_invest if i[2]]
+        close_stocks_to_invest = [i for i in stocks_to_invest if not i[2]]
 
         user_info = Trading.get_user_info()
-        # TODO: get rid of the line below, only because it didn't sell last friday and I don't want it to only use $8
-        if datetime.today().weekday() == 1:
-            money_to_invest = float(user_info['equity'])     # money in robinhood
-        else:
-            money_to_invest = float(user_info['cash'])      # money not invested in robinhood
+        total_money = float(user_info['equity'])
 
-        remaining_money = money_to_invest
+        money_for_open = float(user_info['cash']) + self.open_sell_amount
+        money_for_close = total_money - money_for_open
+
+        percent_open = sum(i[1] for i in open_stocks_to_invest)
+        percent_close = sum(i[1] for i in close_stocks_to_invest)
+
         floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
-        for i in range(len(stocks_to_invest)):
-            amount = round(money_to_invest * (stocks_to_invest[i][3] / total_percent) + floating_additions, 5)
-            if amount / money_to_invest > 0.1:
-                new_amount = money_to_invest * 0.1
-                floating_additions += (amount - new_amount) / (len(stocks_to_invest) - i)
+        remaining_money = money_for_open
+        for i in range(len(open_stocks_to_invest)):
+            amount = round(money_for_open * (open_stocks_to_invest[i][1] / percent_open) + floating_additions, 5)
+            if amount / total_money > 0.1:
+                new_amount = total_money * 0.1
+                floating_additions += (amount - new_amount) / (len(open_stocks_to_invest) - i)
                 amount = new_amount
             if amount < 1.00:
                 amount = 1.00
@@ -354,10 +352,29 @@ class Manager:
 
             remaining_money -= amount
 
-            buy_time = stocks_to_invest[i][1]['predicted_price'] < stocks_to_invest[i][2]['predicted_price']
-            sell_time = stocks_to_invest[i][1]['second_predicted_price'] > stocks_to_invest[i][2]['second_predicted_price']
+            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
 
-            orders.append((stocks_to_invest[i][0], amount, buy_time, sell_time))
+        money_for_close += remaining_money
+
+        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
+        remaining_money = money_for_close
+        for i in range(len(close_stocks_to_invest)):
+            amount = round(money_for_close * (close_stocks_to_invest[i][1] / percent_close) + floating_additions, 5)
+            if amount / total_money > 0.1:
+                new_amount = total_money * 0.1
+                floating_additions += (amount - new_amount) / (len(close_stocks_to_invest) - i)
+                amount = new_amount
+            if amount < 1.00:
+                amount = 1.00
+
+            if amount > remaining_money:
+                break
+
+            remaining_money -= amount
+
+            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
+
+        print(f"Orders: {orders}")
 
         orders_as_dict = {i[0]: i for i in orders}
         self.run[f"orders_to_buy"].log(orders_as_dict)
@@ -380,13 +397,14 @@ class Manager:
         if test:
             stock_predictions = []
             # for i in range(len(listOfTickers) // 4):
-            for i in range(1):
+            for i in range(2):
                 pool = Pool(processes=4)
-                result = pool.starmap_async(begin, tickers_to_run[4:8])
+                result = pool.starmap_async(begin, tickers_to_run[4*i:4*(i+1)])
                 tickers_to_run = tickers_to_run[4:]
                 results = result.get()
                 stock_predictions.extend(results)
                 pool.close()
+                time.sleep(60)
 
             stock_dict_predictions = {i[0]: i for i in stock_predictions}
 
