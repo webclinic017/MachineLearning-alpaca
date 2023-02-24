@@ -6,6 +6,7 @@ from Individual_LSTM import IndividualLSTM
 from Trading import Trader
 import Trading
 from datetime import datetime, date
+from threading import Thread, Lock
 from finvizfinance.quote import finvizfinance
 
 
@@ -251,6 +252,10 @@ class Manager:
         else:
             self.run["orders/sell_close"].log(f"No close sell orders")
 
+        orders_to_check = {}
+        order_lock = Lock()
+        Thread(target=self.retry_orders, args=(orders_to_check, order_lock, trader), daemon=True).start()
+
         # wait until market is open and then execute all open orders
         while True:
             current_time = datetime.timestamp(datetime.utcnow())
@@ -261,7 +266,12 @@ class Manager:
                     print(f"SELLING OPEN")
                     self.execute_orders(sell_open, buying=False)
                 if buy_open:
-                    bought.extend(self.execute_orders(buy_open))
+                    orders_bought = self.execute_orders(buy_open)
+                    for i in orders_bought:
+                        order_lock.acquire()
+                        orders_to_check[i[0]] = i[3]
+                        order_lock.release()
+                        bought.append((i[0], i[1], i[2]))
                     print(f"BUYING OPEN")
                 break
             else:
@@ -278,8 +288,15 @@ class Manager:
         self.run["status"].log(f"making trades at: {datetime.now()}")
         if sell_close:
             self.execute_orders(sell_close, buying=False)
+            print('SELLING CLOSE')
         if buy_close:
-            bought.extend(self.execute_orders(buy_close))
+            orders_bought = self.execute_orders(buy_close)
+            for i in orders_bought:
+                order_lock.acquire()
+                orders_to_check[i[0]] = i[3]
+                order_lock.release()
+                bought.append((i[0], i[1], i[2]))
+            print('BUYING CLOSE')
 
         # shift orders to be sold, make orders None
         if bought:
@@ -466,7 +483,7 @@ class Manager:
                 detail = Trading.buy_stock(ticker=order[0], price=order[1])
                 details.append(detail)
                 if 'quantity' in detail:
-                    results.append((order[0], detail['quantity'], order[3]))
+                    results.append((order[0], detail['quantity'], order[3], detail['id']))
                 print(f"bought: {detail}")
                 time.sleep(10)
         else:
@@ -484,4 +501,19 @@ class Manager:
 
         return results
 
-    # def get_news(self):
+    def retry_orders(self, orders: dict, order_lock: Lock, trader):
+        current_time = datetime.timestamp(datetime.utcnow())
+        while current_time < trader.hours[1]:
+            for ticker, order in orders.items():
+                status = Trading.check_order(order['id'])
+                if status == 1:
+                    order_lock.acquire()
+                    del orders[ticker]
+                    order_lock.release()
+                elif status == 3:
+                    print(f"buying order with id: {order['id']} again because it failed")
+                    response = Trading.buy_stock_by_quantity(ticker, float(order['quantity']))
+                    self.record_order_details(response, buying=True)
+            time.sleep(120)
+            current_time = datetime.timestamp(datetime.utcnow())
+        return
