@@ -1,6 +1,8 @@
 import os
 import time
 from typing import Union
+
+import robin_stocks.tda.orders
 from robin_stocks import robinhood as r
 import pyotp
 from dotenv import load_dotenv
@@ -42,6 +44,18 @@ def buy_stock(ticker: str, price: float):
     if response is not None and 'id' not in response:    # try again if didn't work
         time.sleep(5)
         response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+
+    return response
+
+
+def buy_stock_by_quantity(ticker: str, quantity: float):
+    response = r.order_buy_fractional_by_quantity(symbol=ticker, quantity=quantity)
+    if response is not None and 'id' not in response:  # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_quantity(symbol=ticker, quantity=quantity)
+    if response is not None and 'id' not in response:  # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_quantity(symbol=ticker, quantity=quantity)
 
     return response
 
@@ -109,6 +123,19 @@ def logout():
     r.logout()
 
 
+def check_order(order_id):
+    try:
+        order = r.orders.get_stock_order_info(order_id)
+        if order['state'] == 'filled':
+            return 1
+        elif order['state'] == 'unconfirmed':
+            return 2
+        elif order['state'] == 'cancelled':
+            return 3
+    except:
+        return 0
+    return 0
+
 class Trader:
 
     def __init__(self):
@@ -121,6 +148,7 @@ class Trader:
 
         # login
         self.login = r.login(username, password, mfa_code=totp)
+        self.account = r.load_account_profile()
         self.hours = check_market_open()
         self.tomorrow = check_market_tomorrow()
 

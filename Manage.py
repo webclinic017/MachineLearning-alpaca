@@ -289,7 +289,7 @@ class Manager:
         stock_current_prices = Trading.get_stocks_current_price([i[0] for i in bought])
         for i in range(len(bought)):
             if bought[i][2]:
-                open_sell += stock_current_prices[i] * bought[i][1]
+                open_sell += float(stock_current_prices[i]) * float(bought[i][1])
         self.open_sell_amount = open_sell
 
         bought_as_dict = {i[0]: i for i in bought}
