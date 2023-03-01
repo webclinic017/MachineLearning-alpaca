@@ -199,7 +199,7 @@ class Manager:
         stocks_to_sell = set(self.sell_for_day.keys()) if self.sell_for_day is not None else set()
 
         if stocks_to_sell and stocks_to_buy:
-            buying_and_selling = stocks_to_buy.union(stocks_to_sell)
+            buying_and_selling = stocks_to_buy.intersection(stocks_to_sell)
         else:
             buying_and_selling = set()
 
@@ -207,8 +207,8 @@ class Manager:
         for stock in buying_and_selling:
             buy_tuple = self.orders_for_day[stock]
             sell_tuple = self.sell_for_day[stock]
-            stock_price = Trading.get_stocks_current_price(stock)[0]
-            net_amount = buy_tuple[1] - (sell_tuple[1] * stock_price)
+            stock_price = float(Trading.get_stocks_current_price(stock)[0])
+            net_amount = float(buy_tuple[1]) - (float(sell_tuple[1]) * stock_price)
             if net_amount > 0:
                 new_tuple = (stock, net_amount, buy_tuple[2], buy_tuple[3])
                 self.orders_for_day[stock] = new_tuple
@@ -218,7 +218,7 @@ class Manager:
                 new_tuple = (stock, sell_quantity, sell_tuple[2])
                 self.sell_for_day[stock] = new_tuple
                 del self.orders_for_day[stock]
-                tomorrow_sell_tuple = (stock, round(sell_tuple[1]-sell_quantity, 5), buy_tuple[3])
+                tomorrow_sell_tuple = (stock, round(float(sell_tuple[1])-sell_quantity, 5), buy_tuple[3])
                 bought.extend(tomorrow_sell_tuple)
             else:
                 del self.sell_for_day[stock]
@@ -299,8 +299,6 @@ class Manager:
             print('BUYING CLOSE')
 
         # shift orders to be sold, make orders None
-        if bought:
-            self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought)
 
         open_sell = 0
         stock_current_prices = Trading.get_stocks_current_price([i[0] for i in bought])
@@ -310,6 +308,9 @@ class Manager:
         self.open_sell_amount = open_sell
 
         bought_as_dict = {i[0]: i for i in bought}
+
+        if bought_as_dict:
+            self.run["sell_tomorrow (ticker, quantity, sell_open)"].log(bought_as_dict)
 
         self.sell_for_day = bought_as_dict
         self.orders_for_day = None
