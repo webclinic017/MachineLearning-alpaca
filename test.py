@@ -5,6 +5,7 @@ import pandas
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
+import tensorflow as tf
 
 
 def p_to_text(x):

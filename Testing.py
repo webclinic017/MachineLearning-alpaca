@@ -22,7 +22,7 @@ def begin(ticker: str, id: str, NAT):
     :return: stock prediction data for the next day: tuple(ticker, predicted_price, change_price, change_percent)
     """
     new_run = neptune.init(
-        project="elitheknight/Stock-Prediction",
+        project="elitheknight/Stock-Testing",
         api_token=NAT,
         custom_run_id=id,
         capture_stdout=False,
@@ -30,9 +30,11 @@ def begin(ticker: str, id: str, NAT):
         capture_hardware_metrics=False
     )
 
-    data = pandas.read_csv(f"Data/{ticker}_data.csv")
+    data = pandas.read_csv(f"Data/{ticker}_data.csv", index_col=0)[2:]
 
     stock = IndividualLSTM(ticker, data, new_run)
+
+    # new_run[f"Predictions/{ticker}/LSTM"].log((ticker, stock.open, stock.close))
 
     return ticker, stock.open, stock.close
 
@@ -126,7 +128,7 @@ def predict_stock_prices(test: bool = False):
     # max to run at once is 20 because of pandas figure limits
     with open('tickers.txt', 'r') as f:
         lines = f.readlines()
-    listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN, ALPHA_VANTAGE_TOKEN) for line in lines if
+    listOfTickers = [(line.strip(), custom_id, NEPTUNE_API_TOKEN) for line in lines if
                      line.strip() not in blacklist]
 
     tickers_to_run = listOfTickers.copy()
@@ -147,7 +149,7 @@ def predict_stock_prices(test: bool = False):
         print(stock_dict_predictions)
         return stock_dict_predictions
 
-    num_processes = 4
+    num_processes = 6
     num_tickers = len(listOfTickers)
     groups = num_tickers // num_processes + 1
     stock_predictions = []
@@ -158,8 +160,6 @@ def predict_stock_prices(test: bool = False):
         print(f"\tstarting wave {i + 1}/{groups}")
         result = pool.starmap_async(begin, tickers_to_run[:num_processes])
         tickers_to_run = tickers_to_run[num_processes:]
-        # I have to wait at least 60 seconds to limit my API calls (max 5/min and 500/day)
-        time.sleep(60)
         # start_time = time.time()
         results = result.get()
         stock_predictions.extend(results)
@@ -183,7 +183,7 @@ def calculate_prediction_error(predictions):
     average_mapes = 0.0
     for ticker, values in predictions.items():
         dataframe = pandas.read_csv(f"Data/{ticker}_data.csv")
-        true_close_1, true_close_2, true_open_1, true_open_2 = dataframe['close'][-2], dataframe['close'][-1], dataframe['open'][-2], dataframe['open'][-1]
+        true_close_1, true_close_2, true_open_1, true_open_2 = dataframe['close'][1], dataframe['close'][0], dataframe['open'][1], dataframe['open'][0]
         close_mape_1 = np.mean(np.abs((true_close_1 - values[1]['predicted_price']) / true_close_1)) * 100
         close_mape_2 = np.mean(np.abs((true_close_2 - values[1]['second_predicted_price']) / true_close_2)) * 100
         open_mape_1 = np.mean(np.abs((true_open_1 - values[2]['predicted_price']) / true_open_1)) * 100
@@ -213,17 +213,17 @@ def calculate_order_results(orders):
         amount = values[1]
         start_price += amount
         if values[2]:
-            buy = dataframe['open'][-2]
+            buy = dataframe['open'][1]
         else:
-            buy = dataframe['close'][-2]
+            buy = dataframe['close'][1]
 
         if values[3]:
-            sell = dataframe['open'][-1]
+            sell = dataframe['open'][0]
         else:
-            sell = dataframe['close'][-1]
+            sell = dataframe['close'][0]
 
         percent_change = (sell/buy - 1) * 100
-        price_change = amount * percent_change
+        price_change = amount * percent_change / 100
         price_change_amount += price_change
 
         run[f"order_results"].log(f"{ticker}, percent_change: {percent_change}, price_change: {price_change}")
@@ -254,7 +254,14 @@ if __name__ == '__main__':
     )
 
     stock_predictions = predict_stock_prices()
-    calculate_prediction_error(stock_predictions)
+    print(f"Predictions: {stock_predictions}")
+    try:
+        calculate_prediction_error(stock_predictions)
+    except Exception as e:
+        print(f'error in calc prediction error: {e}')
     orders_to_buy = create_orders(stock_predictions)
-    calculate_order_results(orders_to_buy)
+    try:
+        calculate_order_results(orders_to_buy)
+    except Exception as e:
+        print(f'error in calc order results error: {e}')
 
