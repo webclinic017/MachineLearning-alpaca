@@ -269,7 +269,7 @@ class Manager:
                     orders_bought = self.execute_orders(buy_open)
                     for i in orders_bought:
                         order_lock.acquire()
-                        orders_to_check[i[0]] = i[3]
+                        orders_to_check[i[0]] = i
                         order_lock.release()
                         bought.append((i[0], i[1], i[2]))
                     print(f"BUYING OPEN")
@@ -293,7 +293,7 @@ class Manager:
             orders_bought = self.execute_orders(buy_close)
             for i in orders_bought:
                 order_lock.acquire()
-                orders_to_check[i[0]] = i[3]
+                orders_to_check[i[0]] = i
                 order_lock.release()
                 bought.append((i[0], i[1], i[2]))
             print('BUYING CLOSE')
@@ -483,7 +483,7 @@ class Manager:
             for order in orders:
                 detail = Trading.buy_stock(ticker=order[0], price=order[1])
                 details.append(detail)
-                if 'quantity' in detail:
+                if detail is not None and 'quantity' in detail:
                     results.append((order[0], detail['quantity'], order[3], detail['id']))
                 print(f"bought: {detail}")
                 time.sleep(10)
@@ -506,8 +506,8 @@ class Manager:
         current_time = datetime.timestamp(datetime.utcnow())
         while current_time < trader.hours[1]:
             for ticker, order in orders.items():
-                self.run["retries"].log(f"checking status of order: {order['id']} for stock: {ticker}")
-                status = Trading.check_order(order['id'])
+                self.run["retries"].log(f"checking status of order: {order[3]} for stock: {ticker}")
+                status = Trading.check_order(order[3])
                 if status == 1:
                     print(f"order for stock: {ticker} marked as completed")
                     self.run["retries"].log(f"order for stock: {ticker} marked as completed")
@@ -515,9 +515,9 @@ class Manager:
                     del orders[ticker]
                     order_lock.release()
                 elif status == 3:
-                    self.run["retries"].log(f"buying order with id: {order['id']}, stock: {ticker} again because it failed")
-                    print(f"buying order with id: {order['id']}, stock: {ticker} again because it failed")
-                    response = Trading.buy_stock_by_quantity(ticker, float(order['quantity']))
+                    self.run["retries"].log(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
+                    print(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
+                    response = Trading.buy_stock_by_quantity(ticker, float(order[1]))
                     self.record_order_details(response, buying=True)
             time.sleep(120)
             current_time = datetime.timestamp(datetime.utcnow())
