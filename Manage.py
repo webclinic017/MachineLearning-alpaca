@@ -506,15 +506,18 @@ class Manager:
         current_time = datetime.timestamp(datetime.utcnow())
         while current_time < trader.hours[1]:
             for ticker, order in orders.items():
+                self.run["retries"].log(f"checking status of order: {order['id']} for stock: {ticker}")
                 status = Trading.check_order(order['id'])
                 if status == 1:
+                    print(f"order for stock: {ticker} marked as completed")
+                    self.run["retries"].log(f"order for stock: {ticker} marked as completed")
                     order_lock.acquire()
                     del orders[ticker]
                     order_lock.release()
                 elif status == 3:
-                    print(f"buying order with id: {order['id']} again because it failed")
+                    self.run["retries"].log(f"buying order with id: {order['id']}, stock: {ticker} again because it failed")
+                    print(f"buying order with id: {order['id']}, stock: {ticker} again because it failed")
                     response = Trading.buy_stock_by_quantity(ticker, float(order['quantity']))
                     self.record_order_details(response, buying=True)
             time.sleep(120)
             current_time = datetime.timestamp(datetime.utcnow())
-        return
