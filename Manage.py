@@ -7,7 +7,7 @@ from Trading import Trader
 import Trading
 from datetime import datetime, date
 from threading import Thread, Lock
-from finvizfinance.quote import finvizfinance
+import News
 
 
 def begin(ticker: str, id: str, NAT, AVT, test=False):
@@ -79,6 +79,10 @@ def start_trader():
     if trader.hours is None:
         return None
     return trader
+
+
+# def get_news_sentiment():
+#     sentiments, averaged_sentiments, adjusted_sentiments = News.begin()
 
 
 class Manager:

@@ -1,4 +1,5 @@
 import neptune.new as neptune
+from neptune.new.types import File
 import pandas
 from dotenv import load_dotenv
 import os
@@ -10,6 +11,18 @@ import time
 from Individual_LSTM import IndividualLSTM
 import Trading
 import numpy as np
+import News
+from threading import Thread
+
+
+class newsThread(Thread):
+
+    def __init__(self):
+        Thread.__init__(self, daemon=True)
+        self.sentiment = {}
+
+    def run(self):
+        self.sentiment = get_news_sentiment()
 
 
 def begin(ticker: str, id: str, NAT):
@@ -39,7 +52,7 @@ def begin(ticker: str, id: str, NAT):
     return ticker, stock.open, stock.close
 
 
-def create_orders(stock_prediction_data):
+def create_orders(stock_prediction_data, news_sentiment):
     stocks_to_invest = []   # (ticker, percent_change, buy_open, sell_open)
 
     # find percent change for best buy-sell combo
@@ -47,6 +60,8 @@ def create_orders(stock_prediction_data):
         buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
         sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
         percent_change = (sell/buy - 1) * 100
+        if ticker in news_sentiment:
+            percent_change += news_sentiment[ticker] * 0.5
         if percent_change < 0:
             continue
         sell_open = i[1]['second_predicted_price'] > i[2]['second_predicted_price']
@@ -114,11 +129,11 @@ def create_orders(stock_prediction_data):
     print(f"Orders: {orders}")
 
     orders_as_dict = {i[0]: i for i in orders}
-    run[f"orders_to_buy"].log(orders_as_dict)
+    run[f"orders_to_buy"].upload(File.from_content(str(orders_as_dict)))
     return orders_as_dict
 
 
-def predict_stock_prices(test: bool = False):
+def predict_stock_prices():
     """
     Loads tickers.txt list of stock tickers and creates Individual_LSTM objects
     to predict next day stock prices and divides the tasks among a processing pool
@@ -132,22 +147,9 @@ def predict_stock_prices(test: bool = False):
                      line.strip() not in blacklist]
 
     tickers_to_run = listOfTickers.copy()
-    if test:
-        stock_predictions = []
-        # for i in range(len(listOfTickers) // 4):
-        for i in range(2):
-            pool = Pool(processes=4)
-            result = pool.starmap_async(begin, tickers_to_run[4*i:4*(i+1)])
-            tickers_to_run = tickers_to_run[4:]
-            results = result.get()
-            stock_predictions.extend(results)
-            pool.close()
-            time.sleep(60)
 
-        stock_dict_predictions = {i[0]: i for i in stock_predictions}
-
-        print(stock_dict_predictions)
-        return stock_dict_predictions
+    news_thread = newsThread()
+    news_thread.start()
 
     num_processes = 6
     num_tickers = len(listOfTickers)
@@ -166,14 +168,17 @@ def predict_stock_prices(test: bool = False):
         # print(f"delay: {time.time() - start_time}")
         pool.close()
 
-    # logs the data to neptune
-    run[f"all_prediction_data/Data"].log(stock_predictions)
+    news_thread.join()
 
     # change predictions to dictionary {ticker: (ticker, open, close)}
-
     stock_dict_predictions = {i[0]: i for i in stock_predictions}
 
-    return stock_dict_predictions
+    # logs the data to neptune
+    run[f"all_prediction_data/Data"].upload(File.from_content(str(stock_dict_predictions)))
+    print(f"SENTIMENT: {news_thread.sentiment}")
+    run[f"news_sentiment"].upload(File.from_content(str(news_thread.sentiment)))
+
+    return stock_dict_predictions, news_thread.sentiment
 
 
 def calculate_prediction_error(predictions):
@@ -232,6 +237,11 @@ def calculate_order_results(orders):
     run["trade_results"].log(f"invested {start_price}, changed by {price_change_amount}, changed by price {(end_price/start_price - 1) * 100} ended with price {start_price+price_change_amount}")
 
 
+def get_news_sentiment():
+    sentiments = News.begin()
+    return sentiments
+
+
 if __name__ == '__main__':
     load_dotenv()
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
@@ -253,13 +263,13 @@ if __name__ == '__main__':
         capture_hardware_metrics=False
     )
 
-    stock_predictions = predict_stock_prices()
+    stock_predictions, news_sentiment = predict_stock_prices()
     print(f"Predictions: {stock_predictions}")
     try:
         calculate_prediction_error(stock_predictions)
     except Exception as e:
         print(f'error in calc prediction error: {e}')
-    orders_to_buy = create_orders(stock_predictions)
+    orders_to_buy = create_orders(stock_predictions, news_sentiment)
     try:
         calculate_order_results(orders_to_buy)
     except Exception as e:
