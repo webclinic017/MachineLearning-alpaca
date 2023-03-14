@@ -518,10 +518,12 @@ class Manager:
                     order_lock.acquire()
                     del orders[ticker]
                     order_lock.release()
+                    break
                 elif status == 3:
                     self.run["retries"].log(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
                     print(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
                     response = Trading.buy_stock_by_quantity(ticker, float(order[1]))
                     self.record_order_details(response, buying=True)
-            time.sleep(120)
+            else:
+                time.sleep(120)
             current_time = datetime.timestamp(datetime.utcnow())
