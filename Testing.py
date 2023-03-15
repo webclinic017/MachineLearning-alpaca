@@ -61,7 +61,7 @@ def create_orders(stock_prediction_data, news_sentiment):
         sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
         percent_change = (sell/buy - 1) * 100
         if ticker in news_sentiment:
-            percent_change += news_sentiment[ticker] * 0.5
+            percent_change += news_sentiment[ticker] * 0.75
         if percent_change < 0:
             continue
         sell_open = i[1]['second_predicted_price'] > i[2]['second_predicted_price']

@@ -136,6 +136,12 @@ def check_order(order_id):
         return 0
     return 0
 
+
+def get_fundamentals(tickers: Union[str, list]):
+    assert len(tickers) > 0
+    fundamentals = r.get_fundamentals(tickers)
+
+
 class Trader:
 
     def __init__(self):

@@ -81,8 +81,19 @@ def start_trader():
     return trader
 
 
-# def get_news_sentiment():
-#     sentiments, averaged_sentiments, adjusted_sentiments = News.begin()
+def get_news_sentiment():
+    sentiments = News.begin()
+    return sentiments
+
+
+class newsThread(Thread):
+
+    def __init__(self):
+        Thread.__init__(self, daemon=True)
+        self.sentiment = {}
+
+    def run(self):
+        self.sentiment = get_news_sentiment()
 
 
 class Manager:
@@ -191,12 +202,18 @@ class Manager:
             self.custom_id = None
             return
 
+        news_thread = newsThread()
+        news_thread.start()
         # may have to change line 122 of individual_lstm for testing, it's temperamental
         self.stock_prediction_data = self.predict_stock_prices()
+        news_thread.join()
+        sentiment = news_thread.sentiment
+        if sentiment:
+            self.run["sentiment"].log(sentiment)
 
         print(f"making orders")
         self.run["status"].log("making orders")
-        self.orders_for_day = self.create_orders()
+        self.orders_for_day = self.create_orders(sentiment)
         bought = []
 
         stocks_to_buy = set(self.orders_for_day.keys()) if self.orders_for_day is not None else set()
@@ -324,7 +341,7 @@ class Manager:
         self.run = None
         self.custom_id = None
 
-    def create_orders(self):
+    def create_orders(self, news_sentiment):
         stocks_to_invest = []   # (ticker, percent_change, buy_open, sell_open)
 
         # find percent change for best buy-sell combo
@@ -332,6 +349,8 @@ class Manager:
             buy = min(i[1]['predicted_price'], i[2]['predicted_price'])
             sell = max(i[1]['second_predicted_price'], i[2]['second_predicted_price'])
             percent_change = (sell/buy - 1) * 100
+            if ticker in news_sentiment:
+                percent_change += news_sentiment[ticker] * 0.75    # sentiment weight coefficient
             if percent_change < 0:
                 continue
             sell_open = i[1]['second_predicted_price'] > i[2]['second_predicted_price']

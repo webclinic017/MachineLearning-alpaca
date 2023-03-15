@@ -107,6 +107,6 @@ def begin():
     averaged_sentiments = average_sentiments(sentiments)
     adjusted_sentiments = adjust_sentiments(averaged_sentiments)
 
-    return sentiments
+    return averaged_sentiments
 
 
