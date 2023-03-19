@@ -482,6 +482,10 @@ class Manager:
         return stock_dict_predictions
 
     def record_order_details(self, records, buying: bool):
+        if not records:
+            print(f"ERROR - records in record_order_details is empty, not logging")
+            return
+
         if buying:
             self.run[f"buying_records/{str(date.today())}"].log(records)
             filename = 'buying_records.txt'

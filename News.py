@@ -1,10 +1,12 @@
 import time
 from finvizfinance.quote import finvizfinance as fvf
+# import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import pandas
 from datetime import datetime, timedelta
 import requests
 from bs4 import BeautifulSoup
+# nltk.download('vader_lexicon')
 
 
 def get_article(url, title):
@@ -105,8 +107,6 @@ def begin():
 
     sentiments = get_sentiments(tickers, days_back=2)
     averaged_sentiments = average_sentiments(sentiments)
-    adjusted_sentiments = adjust_sentiments(averaged_sentiments)
+    # adjusted_sentiments = adjust_sentiments(averaged_sentiments)
 
     return averaged_sentiments
-
-
