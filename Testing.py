@@ -43,6 +43,7 @@ def begin(ticker: str, id: str, NAT):
         capture_hardware_metrics=False
     )
 
+    # data = get_data_to_file(ticker, 'ZLGDWBU4HK5QHIXT', 400)
     data = pandas.read_csv(f"Data/{ticker}_data.csv", index_col=0)[2:]
 
     stock = IndividualLSTM(ticker, data, new_run)
@@ -50,6 +51,27 @@ def begin(ticker: str, id: str, NAT):
     # new_run[f"Predictions/{ticker}/LSTM"].log((ticker, stock.open, stock.close))
 
     return ticker, stock.open, stock.close
+
+
+def get_data_to_file(ticker: str, AVT, dataset_size: int):
+    """
+    gets stock csv data to file and returns it, exits the process if it fails
+    :param ticker: str, stock ticker
+    :param AVT: AlphaVantage API token
+    :param dataset_size: int, # of days of data to keep
+    :return: DataFrame of csv data
+    """
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
+
+    try:
+        df = pandas.read_csv(url)[:dataset_size]
+    except Exception as e:
+        print(f"error in getting data for ticker: {ticker}, url: {url}, error: {e}")
+        exit(1)
+
+    df.to_csv(f"Data/{ticker}_data.csv")
+
+    return df
 
 
 def create_orders(stock_prediction_data, news_sentiment):
@@ -151,7 +173,7 @@ def predict_stock_prices():
     news_thread = newsThread()
     news_thread.start()
 
-    num_processes = 6
+    num_processes = 4
     num_tickers = len(listOfTickers)
     groups = num_tickers // num_processes + 1
     stock_predictions = []
@@ -162,6 +184,8 @@ def predict_stock_prices():
         print(f"\tstarting wave {i + 1}/{groups}")
         result = pool.starmap_async(begin, tickers_to_run[:num_processes])
         tickers_to_run = tickers_to_run[num_processes:]
+
+        time.sleep(60)
         # start_time = time.time()
         results = result.get()
         stock_predictions.extend(results)

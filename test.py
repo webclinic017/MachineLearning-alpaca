@@ -128,6 +128,9 @@ def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_uni
     keras.models.save_model(model, f"Models/{date}/{data_var}")
     dump(scaler, f"Models/{date}/{data_var}scaler.bin")
 
+    # ticker = 'AAPL'
+    # flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size * -1 - 2:-2]
+    #
     # x_test = preprocess_testdata(data=flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
     #
     # predicted_price_array = model.predict(x_test, verbose=0)
@@ -137,10 +140,16 @@ def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_uni
     # # predicted price for the next day
     # predicted_price = predicted_price_array[0][0]
     # change_price, change_percentage = calculate_change(flippedData.iloc[-1][data_var], predicted_price)
+    # print(predicted_price)
+    # print(change_percentage)
     #
     # # predict 2nd day out
     # # add prediction to dataframe to predict the next day
-    # flippedData.loc[len(flippedData.index)] = [0, 0, 0, 0, predicted_price, 0, 0, 0, 1.0]
+    # if data_var == 'close':
+    #     flippedData.loc[len(flippedData.index)] = [0, 0, 0, 0, 0, predicted_price, 0, 0, 0, 1.0]
+    # else:
+    #     flippedData.loc[len(flippedData.index)] = [0, 0, predicted_price, 0, 0, 0, 0, 0, 0, 1.0]
+    #
     # x_test = preprocess_testdata(data=flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
     # predicted_price_array = model.predict(x_test, verbose=0)
     # predicted_price_array = scaler.inverse_transform(predicted_price_array)
@@ -150,14 +159,8 @@ def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_uni
     #
     # second_predicted_price = predicted_price_array[0][0]
     # second_change_price, second_change_percentage = calculate_change(predicted_price, second_predicted_price)
-    # return {
-    #     'predicted_price': predicted_price,
-    #     'change_percentage': change_percentage,
-    #     'change_price': change_price,
-    #     'second_predicted_price': second_predicted_price,
-    #     'second_change_percentage': second_change_percentage,
-    #     'second_change_price': second_change_price
-    # }
+    # print(second_predicted_price)
+    # print(second_change_percentage)
 
 
 def predict_from_model(model, data_var, date):
@@ -209,12 +212,12 @@ def predict_from_model(model, data_var, date):
 
 
 if __name__ == '__main__':
-    # make_both_models()
-    date = pandas.read_csv(f"Data/AAPL_data.csv")['timestamp'][0]
-
-    open = keras.models.load_model(f"Models/{date}/open")
-    close = keras.models.load_model(f"Models/{date}/close")
-
-    predict_from_model(open, 'open', date)
-    predict_from_model(close, 'close', date)
+    make_both_models()
+    # date = pandas.read_csv(f"Data/AAPL_data.csv")['timestamp'][0]
+    #
+    # open = keras.models.load_model(f"Models/{date}/open")
+    # close = keras.models.load_model(f"Models/{date}/close")
+    #
+    # predict_from_model(open, 'open', date)
+    # predict_from_model(close, 'close', date)
 
