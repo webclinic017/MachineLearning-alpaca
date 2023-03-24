@@ -240,7 +240,7 @@ class Manager:
                 self.sell_for_day[stock] = new_tuple
                 del self.orders_for_day[stock]
                 tomorrow_sell_tuple = (stock, round(float(sell_tuple[1])-sell_quantity, 5), buy_tuple[3])
-                bought.extend(tomorrow_sell_tuple)
+                bought.append(tomorrow_sell_tuple)
             else:
                 del self.sell_for_day[stock]
                 del self.orders_for_day[stock]
@@ -519,7 +519,7 @@ class Manager:
                 details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
                 time.sleep(10)
 
-        if not results:
+        if buying and not results:
             print("warning - order execution results are empty")
             self.run["status"].log("warning - order execution results are empty")
             return results
