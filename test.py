@@ -115,9 +115,14 @@ def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_uni
     model.compile(loss='mean_squared_error', optimizer='adam')
 
     print('starting training loop')
+    fit = True
     for ticker in tickers:
         flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size*-1 - 2:-2]
-        scaled_data = scaler.fit_transform(flippedData[[data_var]].values)
+        if fit:
+            scaled_data = scaler.fit_transform(flippedData[[data_var]].values)
+            fit = False
+        else:
+            scaled_data = scaler.transform(flippedData[[data_var]].values)
         scaled_data_train = scaled_data[:flippedData.shape[0]]
 
         x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size, window_size)
@@ -170,7 +175,7 @@ def predict_from_model(model, data_var, date):
 
     scaler = load(f"Models/{date}/{data_var}scaler.bin")
     flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size * -1 - 2:-2]
-
+    print(flippedData)
     x_test = preprocess_testdata(data=flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
 
     predicted_price_array = model.predict(x_test, verbose=0)
