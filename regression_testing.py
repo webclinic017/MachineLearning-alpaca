@@ -1,29 +1,14 @@
+import os
+
 import keras.models
 import numpy as np
-import pandas
 from sklearn.preprocessing import StandardScaler
-from keras.layers import LSTM, Dense, GRU, Dropout
+from keras.layers import Dense, GRU, Dropout
 import keras.optimizers as kop
 from joblib import dump, load
-from datetime import date, timedelta
+from datetime import date
 import Trading
-
-
-def extract_seqX_outcomeY(data, N, offset):
-    """
-    Split time-series into training sequence X and outcome value Y
-    :param data: dataset
-    :param N: window size, e.g., 50 for 50 days of historical stock prices
-    :param offset: position to start the split (same as N)
-    :return: numpy arrays of x, y training data
-    """
-    X, y = [], []
-
-    for i in range(offset, len(data)):
-        X.append(data[i - N:i])
-        y.append(data[i])
-
-    return np.array(X), np.array(y)
+from typing import Union
 
 
 def calculate_change(last_value, predicted_value):
@@ -62,24 +47,6 @@ def preprocess_testdata(data, scaler: StandardScaler, window_size, data_var: str
     return x_test
 
 
-def make_both_models():
-    """
-    runs whole LSTM prediction process and saves prediction to object variables
-    """
-    cur_epochs = 10
-    cur_batch_size = 25
-    window_size = 50
-    layer_units = 50
-
-    # if run is not None:
-    #     # log everything to neptune
-    #     run[f"Predictions/{ticker}/LSTM/open"].log(open)
-    #     run[f"Predictions/{ticker}/LSTM/close"].log(close)
-
-    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'close')
-    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'open')
-
-
 def get_data():
     with open('tickers.txt', 'r') as f:
         tickers = f.readlines()
@@ -88,7 +55,7 @@ def get_data():
     data = []
 
     for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
-        data.extend(Trading.get_historicals(tickers[i*50: min((i+1)*50, len(tickers))]))
+        data.extend(Trading.get_historicals(tickers[i*50: min((i+1)*50, len(tickers))], span='month'))
 
     new_data = []
     for i in data:
@@ -98,110 +65,125 @@ def get_data():
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
+    # index of data[x:y:1] is the close price
+    y_data = data[:, -1, 1]
+
+    x_data = np.delete(data, -1, 1)
+
+    return x_data, y_data
+
+
+def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month'):
+    if tickers is None:
+        with open('tickers.txt', 'r') as f:
+            tickers = f.readlines()
+
+        tickers = [i.strip() for i in tickers]
+    elif isinstance(tickers, str):
+        tickers = [tickers]
+
+    data = []
+    for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
+        data.extend(Trading.get_historicals(tickers[i*50: min((i+1)*50, len(tickers))], span=span))
+
+    new_data = []
+    for i in data:
+        new_data.append(list(i.values())[1:6])
+
+    data = np.array(new_data, dtype='float64')
+
+    data = np.array(np.split(data, len(tickers)), dtype='float64')
+
+    data = np.delete(data, 0, 1)
+
     return data
 
 
-def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_units: int, data_var: str):
-    scaler = StandardScaler()
-    data_size = 300
+def make_model(cur_epochs: int, layer_units: int):
+
     print('making model')
     regressionGRU = keras.Sequential()
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, input_shape=(5, 5)))
+    regressionGRU.add(GRU(units=layer_units, input_shape=(19, 5)))
     regressionGRU.add(Dropout(0.2))
     regressionGRU.add(Dense(units=1))
-    regressionGRU.compile(optimizer=kop.SGD())
+    regressionGRU.compile(loss='mean_absolute_error', optimizer=kop.SGD(), metrics=['mae'])
+
+    path = f"Models/GRU/{date}"
+    if not os.path.exists(path):
+        os.makedirs(path)
 
     print('starting training loop')
-    data = get_data()
-    for i in data.shape[-1]:
+    data, y_data = get_data()
+    first = True
+    for i in range(data.shape[-1]):
         scaler = StandardScaler()
         sub_arr = data[:, :, i]
-        sub_arr = sub_arr.reshape(sub_arr.shape[0]*sub_arr.shape[1])
-        scaled_data = scaler.fit_transform(sub_arr)
-        dump(scaler, f"Models/GRU/{date}/{i}scaler.bin")
-
-
-
-    fit = True
-    for ticker in tickers:
-        flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size*-1 - 2:-2]
-        if fit:
-            scaled_data = scaler.fit_transform(flippedData[[data_var]].values)
-            fit = False
+        # sub_arr = sub_arr.reshape(sub_arr.shape[0]*sub_arr.shape[1])
+        sub_scaled_data = scaler.fit_transform(sub_arr)
+        sub_scaled_data = sub_scaled_data.reshape((sub_scaled_data.shape[0], sub_scaled_data.shape[1], 1))
+        if first:
+            scaled_data = sub_scaled_data
+            first = False
         else:
-            scaled_data = scaler.transform(flippedData[[data_var]].values)
-        scaled_data_train = scaled_data[:flippedData.shape[0]]
+            scaled_data = np.concatenate((scaled_data, sub_scaled_data), axis=2)
 
-        x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size, window_size)
-        regressionGRU.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1, shuffle=True)
+        dump(scaler, f"{path}/{i}scaler.bin")
+
+    print(y_data)
+
+    regressionGRU.fit(scaled_data, y_data, epochs=cur_epochs, verbose=0, validation_split=0.1, shuffle=True)
 
     # save models
     print('saving model')
-    keras.models.save_model(regressionGRU, f"Models/GRU/{date}/{data_var}")
-    dump(scaler, f"Models/GRU/{date}/{data_var}scaler.bin")
+    keras.models.save_model(regressionGRU, f"Models/GRU/{date}")
 
 
-def predict_from_model(model, data_var, date):
-    ticker = 'AAPL'
-    data_size = 300
-    window_size = 50
+def predict_from_model(model, path):
+    tickers = ['AAPL', 'ABBV']
 
-    scaler = load(f"Models/{date}/{data_var}scaler.bin")
-    flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size * -1 - 2:-2]
-    print(flippedData)
-    x_test = preprocess_testdata(data=flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
+    data = get_prediction_data(tickers=tickers)
+    first = True
+    for i in range(data.shape[-1]):
+        scaler = load(f"{path}/{i}scaler.bin")
+        sub_arr = data[:, :, i]
+        sub_scaled_data = scaler.transform(sub_arr)
+        sub_scaled_data = sub_scaled_data.reshape((sub_scaled_data.shape[0], sub_scaled_data.shape[1], 1))
+        if first:
+            scaled_data = sub_scaled_data
+            first = False
+        else:
+            scaled_data = np.concatenate((scaled_data, sub_scaled_data), axis=2)
 
-    predicted_price_array = model.predict(x_test, verbose=0)
-    predicted_price_array = scaler.inverse_transform(predicted_price_array)
+    assert(len(scaled_data) == len(tickers))
+    results = {}
+    for i in range(len(scaled_data)):
+        predicted_price = model.predict(scaled_data[i].reshape(1, scaled_data[i].shape[0], scaled_data[i].shape[1]), verbose=0)
+        results[tickers[i]] = float(predicted_price[0][0])
 
-    # set object variables, so I can get the results in Main
-    # predicted price for the next day
-    predicted_price = predicted_price_array[0][0]
-    change_price, change_percentage = calculate_change(flippedData.iloc[-1][data_var], predicted_price)
-    print(predicted_price)
-    print(change_percentage)
-
-    # predict 2nd day out
-    # add prediction to dataframe to predict the next day
-    if data_var == 'close':
-        flippedData.loc[len(flippedData.index)] = [0, 0, 0, 0, 0, predicted_price, 0, 0, 0, 1.0]
-    else:
-        flippedData.loc[len(flippedData.index)] = [0, 0, predicted_price, 0, 0, 0, 0, 0, 0, 1.0]
-
-    x_test = preprocess_testdata(data=flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
-    predicted_price_array = model.predict(x_test, verbose=0)
-    predicted_price_array = scaler.inverse_transform(predicted_price_array)
-
-    # remove 1st prediction from dataframe to not affect other results
-    flippedData = flippedData.drop(flippedData.index[-1])
-
-    second_predicted_price = predicted_price_array[0][0]
-    second_change_price, second_change_percentage = calculate_change(predicted_price, second_predicted_price)
-    print(second_predicted_price)
-    print(second_change_percentage)
-    # return {
-    #     'predicted_price': predicted_price,
-    #     'change_percentage': change_percentage,
-    #     'change_price': change_price,
-    #     'second_predicted_price': second_predicted_price,
-    #     'second_change_percentage': second_change_percentage,
-    #     'second_change_price': second_change_price
-    # }
+    return results
 
 
 if __name__ == '__main__':
-    make_both_models()
-    # date = pandas.read_csv(f"Data/AAPL_data.csv")['timestamp'][0]
-    #
-    # open = keras.models.load_model(f"Models/{date}/open")
-    # close = keras.models.load_model(f"Models/{date}/close")
-    #
-    # predict_from_model(open, 'open', date)
-    # predict_from_model(close, 'close', date)
+    # date when making the model should always be the current date
+    date = date.today().strftime('%Y-%m-%d')
+    trader = Trading.Trader()
+
+    cur_epochs = 50
+    layer_units = 50
+
+    # make_model(cur_epochs, layer_units)
+
+    # date in path when predicting data should be set to any model currently stored (best to use as close to present as possible)
+
+    path = f"Models/GRU/{date}"
+    model = keras.models.load_model(path)
+
+    predictions = predict_from_model(model, path)
+    print(predictions)
 

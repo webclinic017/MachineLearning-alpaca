@@ -1,7 +1,6 @@
 import os
 import time
 from typing import Union
-
 import robin_stocks.tda.orders
 from robin_stocks import robinhood as r
 import pyotp
