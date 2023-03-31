@@ -74,13 +74,6 @@ def get_data_to_file(ticker: str, AVT, dataset_size: int):
     return df
 
 
-def start_trader():
-    trader = Trader()
-    if trader.hours is None:
-        return None
-    return trader
-
-
 def get_news_sentiment():
     sentiments = News.begin()
     return sentiments
@@ -130,8 +123,8 @@ class Manager:
             hr = dt.hour
             # start each day at 8 am, if not between 8-9, sleep an appropriate amount of time
             if hr == 8:
-                trader = start_trader()
-                if trader is None:
+                trader = Trading.Trader()
+                if trader.hours is None:
                     print(f"sleeping for {23*3600} seconds")
                     time.sleep(23*3600)
                     continue

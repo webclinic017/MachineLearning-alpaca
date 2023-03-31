@@ -2,10 +2,11 @@ import keras.models
 import numpy as np
 import pandas
 from sklearn.preprocessing import StandardScaler
-from keras import Input, Model
 from keras.layers import LSTM, Dense, GRU, Dropout
 import keras.optimizers as kop
 from joblib import dump, load
+from datetime import date, timedelta
+import Trading
 
 
 def extract_seqX_outcomeY(data, N, offset):
@@ -70,63 +71,63 @@ def make_both_models():
     window_size = 50
     layer_units = 50
 
-    # default adam settings
-    # learning_rate = 0.001,
-    # beta_1 = 0.9,
-    # beta_2 = 0.999,
-    # epsilon = 1e-07,
-    # amsgrad = False,
-    # weight_decay = None,
-    # clipnorm = None,
-    # clipvalue = None,
-    # global_clipnorm = None,
-    # use_ema = False,
-    # ema_momentum = 0.99,
-    # ema_overwrite_frequency = None,
-    # jit_compile = True
-
-    optimizer = kop.Adam(learning_rate=0.006, beta_1=0.850, beta_2=0.999, epsilon=1e-07)
-    optimizer.weight_decay = 0.004
-
     # if run is not None:
     #     # log everything to neptune
     #     run[f"Predictions/{ticker}/LSTM/open"].log(open)
     #     run[f"Predictions/{ticker}/LSTM/close"].log(close)
 
-    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'close', optimizer)
-    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'open', optimizer)
+    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'close')
+    make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'open')
 
 
-def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_units: int, data_var: str, optimizer: kop = 'adam'):
+def get_data():
     with open('tickers.txt', 'r') as f:
         tickers = f.readlines()
 
     tickers = [i.strip() for i in tickers]
-    date = pandas.read_csv(f"Data/AAPL_data.csv")['timestamp'][0]
+    data = []
 
+    for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
+        data.extend(Trading.get_historicals(tickers[i*50: min((i+1)*50, len(tickers))]))
+
+    new_data = []
+    for i in data:
+        new_data.append(list(i.values())[1:6])
+
+    data = np.array(new_data, dtype='float64')
+
+    data = np.array(np.split(data, len(tickers)), dtype='float64')
+
+    return data
+
+
+def make_model(cur_epochs: int, cur_batch_size: int, window_size: int, layer_units: int, data_var: str):
     scaler = StandardScaler()
     data_size = 300
     print('making model')
     regressionGRU = keras.Sequential()
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(window_size, 1)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(window_size, 1)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(window_size, 1)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(5, 5)))
     regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, input_shape=(window_size, 1)))
+    regressionGRU.add(GRU(units=layer_units, input_shape=(5, 5)))
     regressionGRU.add(Dropout(0.2))
     regressionGRU.add(Dense(units=1))
     regressionGRU.compile(optimizer=kop.SGD())
 
-    # inp = Input(shape=(window_size, 1))
-    # x = LSTM(units=layer_units, return_sequences=True)(inp)
-    # x = LSTM(units=layer_units)(x)
-    # out = Dense(1, activation='linear')(x)
-    # model = Model(inp, out)
-    # model.compile(loss='mean_squared_error', optimizer='adam')
-
     print('starting training loop')
+    data = get_data()
+    for i in data.shape[-1]:
+        scaler = StandardScaler()
+        sub_arr = data[:, :, i]
+        sub_arr = sub_arr.reshape(sub_arr.shape[0]*sub_arr.shape[1])
+        scaled_data = scaler.fit_transform(sub_arr)
+        dump(scaler, f"Models/GRU/{date}/{i}scaler.bin")
+
+
+
     fit = True
     for ticker in tickers:
         flippedData = pandas.read_csv(f"Data/{ticker}_data.csv").copy().loc[::-1].reset_index(drop=True)[data_size*-1 - 2:-2]

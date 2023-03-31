@@ -94,12 +94,13 @@ def get_last_close_price(tickers: Union[str, list]):
     return closes
 
 
-def check_market_open():
-    today = str(date.today())
-    market_data = r.markets.get_market_hours('XNYS', today)
+def check_market_open(dateToday=None):
+    if not dateToday:
+        dateToday = str(date.today())
+    market_data = r.markets.get_market_hours('XNYS', dateToday)
 
     if not market_data['is_open']:
-        print(f"The New York Stock Exchange is NOT open today: {today}")
+        print(f"The New York Stock Exchange is NOT open today: {dateToday}")
         return None
 
     opens = datetime.timestamp(datetime.strptime(market_data['opens_at'], "%Y-%m-%dT%H:%M:%SZ"))
@@ -140,6 +141,13 @@ def check_order(order_id):
 def get_fundamentals(tickers: Union[str, list]):
     assert len(tickers) > 0
     fundamentals = r.get_fundamentals(tickers)
+    return fundamentals
+
+
+def get_historicals(tickers: Union[str, list], span: str = 'week', interval: str = 'day'):
+    assert len(tickers) > 0
+    hist = r.get_stock_historicals(tickers, span=span, interval=interval)
+    return hist
 
 
 class Trader:
