@@ -5,7 +5,7 @@ from statistics import mean
 from multiprocessing import Pool
 import os
 import pandas
-import neptune.new as neptune
+import neptune
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     dateTimeObj = datetime.now()
     custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
 
-    run = neptune.init(
+    run = neptune.init_run(
         project="elitheknight/GeneticStock",
         api_token=NEPTUNE_API_TOKEN,
         custom_run_id=custom_id

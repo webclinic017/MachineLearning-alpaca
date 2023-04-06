@@ -9,7 +9,7 @@ import os
 import time
 from datetime import datetime
 import warnings
-import neptune.new as neptune
+import neptune
 import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
@@ -309,7 +309,7 @@ if __name__ == '__main__':
     dateTimeObj = datetime.now()
     custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
 
-    run = neptune.init(
+    run = neptune.init_run(
         project="elitheknight/Stock-Prediction",
         api_token=NEPTUNE_API_TOKEN,
         custom_run_id=custom_id

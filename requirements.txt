@@ -50,7 +50,6 @@ matplotlib==3.5.3
 matplotlib-inline==0.1.6
 monotonic==1.6
 msgpack==1.0.4
-neptune-client==0.16.9
 numpy==1.23.4
 oauthlib==3.2.1
 opt-einsum==3.3.0
@@ -114,3 +113,4 @@ tensorflow~=2.11.0
 nltk~=3.8.1
 finvizfinance~=0.14.5
 DateTime~=5.0
+neptune~=1.1.1

@@ -1,5 +1,5 @@
-import neptune.new as neptune
-from neptune.new.types import File
+import neptune
+from neptune.types import File
 import pandas
 from dotenv import load_dotenv
 import os
@@ -34,7 +34,7 @@ def begin(ticker: str, id: str, NAT):
     :param AVT: AlphaVantage Token
     :return: stock prediction data for the next day: tuple(ticker, predicted_price, change_price, change_percent)
     """
-    new_run = neptune.init(
+    new_run = neptune.init_run(
         project="elitheknight/Stock-Testing",
         api_token=NAT,
         custom_run_id=id,
@@ -278,7 +278,7 @@ if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # tensorflow cpu not found error
     dateTimeObj = datetime.now()
     custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
-    run = neptune.init(
+    run = neptune.init_run(
         project="elitheknight/Stock-Testing",
         custom_run_id=custom_id,
         api_token=NEPTUNE_API_TOKEN,

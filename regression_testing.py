@@ -1,12 +1,15 @@
 import os
-
+import neptune
+from neptune.types import File
+from dotenv import load_dotenv
 import keras.models
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from keras.layers import Dense, GRU, Dropout
+import keras.losses as losses
 import keras.optimizers as kop
 from joblib import dump, load
-from datetime import date
+from datetime import date, datetime
 import Trading
 from typing import Union
 
@@ -22,6 +25,18 @@ def calculate_change(last_value, predicted_value):
     percent = (predicted_value/last_value - 1) * 100
 
     return price, percent
+
+
+def calculate_mape(y_true, y_pred):
+
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+    return mape
+
+
+def calculate_difference(y_true, y_pred):
+    return np.abs(y_true-y_pred)
 
 
 def preprocess_testdata(data, scaler: StandardScaler, window_size, data_var: str):
@@ -47,7 +62,7 @@ def preprocess_testdata(data, scaler: StandardScaler, window_size, data_var: str
     return x_test
 
 
-def get_data():
+def get_data(test: bool = False):
     with open('tickers.txt', 'r') as f:
         tickers = f.readlines()
 
@@ -57,6 +72,8 @@ def get_data():
     for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
         data.extend(Trading.get_historicals(tickers[i*50: min((i+1)*50, len(tickers))], span='month'))
 
+    # gets (open, close, high, low, volume)
+
     new_data = []
     for i in data:
         new_data.append(list(i.values())[1:6])
@@ -65,15 +82,29 @@ def get_data():
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
-    # index of data[x:y:1] is the close price
-    y_data = data[:, -1, 1]
+    if test:   # if testing, remove most recent day of data so I can calculate MAPE
+        data = np.delete(data, -1, 1)
 
-    x_data = np.delete(data, -1, 1)
+    adjusted_data = np.copy(data)
+    for j in range(adjusted_data.shape[-1] - 1):
+        for i in range(adjusted_data.shape[1] - 1):
+            adjusted_data[:, i+1, j] = ((data[:, i+1, j] / data[:, i, j]) - 1) * 100
+
+    # have to do this at least once
+    adjusted_data = np.delete(adjusted_data, 0, 1)
+
+    if adjusted_data.shape[1] > 19:
+        while adjusted_data.shape[1] > 19:
+            adjusted_data = np.delete(adjusted_data, 0, 1)
+
+    y_data = adjusted_data[:, -1, 1]
+
+    x_data = np.delete(adjusted_data, -1, 1)
 
     return x_data, y_data
 
 
-def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month'):
+def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month', test: bool = False):
     if tickers is None:
         with open('tickers.txt', 'r') as f:
             tickers = f.readlines()
@@ -94,32 +125,82 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month'):
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
-    data = np.delete(data, 0, 1)
+    if test:   # if testing, remove most recent day of data so I can calculate MAPE
+        data = np.delete(data, -1, 1)
 
-    return data
+    adjusted_data = np.copy(data)
+    for j in range(adjusted_data.shape[-1] - 1):
+        for i in range(adjusted_data.shape[1] - 1):
+            adjusted_data[:, i + 1, j] = ((data[:, i + 1, j] / data[:, i, j]) - 1) * 100
+
+    # have to do this at least once
+    adjusted_data = np.delete(adjusted_data, 0, 1)
+
+    if adjusted_data.shape[1] > 18:
+        while adjusted_data.shape[1] > 18:
+            adjusted_data = np.delete(adjusted_data, 0, 1)
+
+    return adjusted_data
 
 
-def make_model(cur_epochs: int, layer_units: int):
+def make_model(cur_epochs: int, layer_units: int, test: bool = False):
+
+    # learning_rate = 0.006
+    beta_1 = 0.9
+    beta_2 = 0.999
+    epsilon = 1e-7
+    weight_decay = None
+
+    run[f"model_args/learning_rate"].log(learning_rate)
+    run[f"model_args/beta_1"].log(beta_1)
+    run[f"model_args/beta_2"].log(beta_2)
+    run[f"model_args/epsilon"].log(epsilon)
+    run[f"model_args/weight_decay"].log(weight_decay if weight_decay else 'None')
+
+    opt = kop.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
+    opt.weight_decay = weight_decay
+
+    loss = losses.MeanSquaredLogarithmicError()
+    metrics = ['accuracy']
+    dropout = 0.2
+
+    run[f"model_args/dropout"].log(dropout)
+    run[f"model_args/loss"].log(loss.name)
+    run[f"model_args/metrics"].log(metrics if metrics else 'None')
 
     print('making model')
     regressionGRU = keras.Sequential()
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
-    regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
-    regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(19, 5)))
-    regressionGRU.add(Dropout(0.2))
-    regressionGRU.add(GRU(units=layer_units, input_shape=(19, 5)))
-    regressionGRU.add(Dropout(0.2))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
+    regressionGRU.add(GRU(units=layer_units, input_shape=(18, 5)))
+    regressionGRU.add(Dropout(dropout))
     regressionGRU.add(Dense(units=1))
-    regressionGRU.compile(loss='mean_absolute_error', optimizer=kop.SGD(), metrics=['mae'])
+    regressionGRU.compile(loss=loss, optimizer=opt, metrics=metrics)
 
     path = f"Models/GRU/{date}"
     if not os.path.exists(path):
         os.makedirs(path)
 
     print('starting training loop')
-    data, y_data = get_data()
+    data, y_data = get_data(test=test)
     first = True
     for i in range(data.shape[-1]):
         scaler = StandardScaler()
@@ -135,7 +216,11 @@ def make_model(cur_epochs: int, layer_units: int):
 
         dump(scaler, f"{path}/{i}scaler.bin")
 
-    print(y_data)
+    # y_scaler = StandardScaler()
+    y_data = y_data.reshape((y_data.shape[0], 1))
+    # y_data = y_scaler.fit_transform(y_data)
+    # dump(y_scaler, f"{path}/yscaler.bin")
+    # print(y_data)
 
     regressionGRU.fit(scaled_data, y_data, epochs=cur_epochs, verbose=0, validation_split=0.1, shuffle=True)
 
@@ -143,11 +228,17 @@ def make_model(cur_epochs: int, layer_units: int):
     print('saving model')
     keras.models.save_model(regressionGRU, f"Models/GRU/{date}")
 
+    return regressionGRU
 
-def predict_from_model(model, path):
-    tickers = ['AAPL', 'ABBV']
 
-    data = get_prediction_data(tickers=tickers)
+def predict_from_model(model, path, test: bool = False):
+    # tickers = ['AAPL', 'ABBV', 'TSLA']
+    with open('tickers.txt', 'r') as f:
+        tickers = f.readlines()
+
+    tickers = [i.strip() for i in tickers]
+
+    data = get_prediction_data(tickers=tickers, test=test)
     first = True
     for i in range(data.shape[-1]):
         scaler = load(f"{path}/{i}scaler.bin")
@@ -161,29 +252,77 @@ def predict_from_model(model, path):
             scaled_data = np.concatenate((scaled_data, sub_scaled_data), axis=2)
 
     assert(len(scaled_data) == len(tickers))
+    # y_scaler = load(f"{path}/yscaler.bin")
     results = {}
     for i in range(len(scaled_data)):
         predicted_price = model.predict(scaled_data[i].reshape(1, scaled_data[i].shape[0], scaled_data[i].shape[1]), verbose=0)
+        # predicted_price = y_scaler.inverse_transform(predicted_price)
         results[tickers[i]] = float(predicted_price[0][0])
 
     return results
 
 
 if __name__ == '__main__':
+    load_dotenv()
+    NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
     # date when making the model should always be the current date
     date = date.today().strftime('%Y-%m-%d')
-    trader = Trading.Trader()
 
-    cur_epochs = 50
-    layer_units = 50
+    for i in range(20):
+        learning_rate = 0.001 + (0.001 * i)
+        dateTimeObj = datetime.now()
+        custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
+        run = neptune.init_run(
+            project="elitheknight/Stock-Testing",
+            custom_run_id=custom_id,
+            api_token=NEPTUNE_API_TOKEN,
+            capture_stdout=False,
+            capture_stderr=False,
+            capture_hardware_metrics=False
+        )
 
-    # make_model(cur_epochs, layer_units)
+        trader = Trading.Trader()
+        cur_epochs = 50
+        layer_units = 50
+        path = f"Models/GRU/{date}"
 
-    # date in path when predicting data should be set to any model currently stored (best to use as close to present as possible)
+        model = make_model(cur_epochs, layer_units, test=True)
+        # model = keras.models.load_model(path)
+        predictions = predict_from_model(model, path, test=True)
 
-    path = f"Models/GRU/{date}"
-    model = keras.models.load_model(path)
+        with open('tickers.txt', 'r') as f:
+            tickers = f.readlines()
 
-    predictions = predict_from_model(model, path)
-    print(predictions)
+        tickers = [i.strip() for i in tickers]
+        errors = {}
+        true_vals = dict(zip(tickers, Trading.get_last_close_percent_change(tickers)))
+        # print(true_vals)
+        correct_signs = 0
+        for k, v in predictions.items():
+            if true_vals[k] * v >= 0:
+                correct_signs += 1
+            run[f"Predictions/{k}"].log(v)
+            errors[k] = calculate_difference(true_vals[k], v)
+            run[f"Prediction_Errors/{k}"].log(errors[k])
+
+        correct_signs = correct_signs / len(predictions) * 100
+        average_error = np.mean(list(errors.values()))
+        max_error = np.max(list(errors.values()))
+        run[f"correct_signs (%)"].log(correct_signs)
+        run[f"average_error"].log(average_error)
+        run[f"max_error"].log(max_error)
+        print(predictions)
+        print(errors)
+        print(f"max error: {max_error}")
+        print(average_error)
+
+        run.stop()
+
+        # date in path when predicting data should be set to any model currently stored (best to use as close to present as possible)
+
+        # load model from files:
+        # model = keras.models.load_model(path)
+
+        # predictions = predict_from_model(model, path)
+        # print(predictions)
 

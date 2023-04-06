@@ -1,6 +1,6 @@
 import pandas
 import time
-import neptune.new as neptune
+import neptune
 from multiprocessing import Pool
 from Individual_LSTM import IndividualLSTM
 from Trading import Trader
@@ -19,7 +19,7 @@ def begin(ticker: str, id: str, NAT, AVT, test=False):
     :param AVT: AlphaVantage Token
     :return: stock prediction data for the next day: tuple(ticker, predicted_price, change_price, change_percent)
     """
-    run = neptune.init(
+    run = neptune.init_run(
         project="elitheknight/Stock-Prediction",
         api_token=NAT,
         custom_run_id=id,
@@ -95,7 +95,7 @@ class Manager:
         # create neptune run with custom_id, so it can be referenced in multiprocessing processes
         dateTimeObj = datetime.now()
         self.custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
-        self.run = neptune.init(
+        self.run = neptune.init_run(
             project="elitheknight/Stock-Prediction",
             api_token=NAT,
             custom_run_id=self.custom_id,
@@ -147,7 +147,7 @@ class Manager:
         if self.run is None:
             dateTimeObj = datetime.now()
             self.custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
-            self.run = neptune.init(
+            self.run = neptune.init_run(
                 project="elitheknight/Stock-Prediction",
                 api_token=self.NEPTUNE_API_TOKEN,
                 custom_run_id=self.custom_id,

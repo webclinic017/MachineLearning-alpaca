@@ -5,6 +5,7 @@ from robin_stocks import robinhood as r
 import pyotp
 from dotenv import load_dotenv
 from datetime import date, datetime, timedelta
+import numpy as np
 
 
 def get_user_info():
@@ -85,10 +86,33 @@ def sell_all_stocks():
 
 def get_last_close_price(tickers: Union[str, list]):
     assert len(tickers) > 0
-    closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
+    if isinstance(tickers, str):
+        tickers = [tickers]
+    if len(tickers) > 50:
+        closes = []
+        for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
+            closes.extend(r.stocks.get_stock_historicals(tickers[i*50: min((i+1)*50, len(tickers))], interval="day", span="week", info='close_price'))
+    else:
+        closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
     assert(isinstance(closes, list))
     days = len(closes)//len(tickers)
     closes = closes[days-1::days]
+    return closes
+
+
+def get_last_close_percent_change(tickers: Union[str, list]):
+    assert len(tickers) > 0
+    if isinstance(tickers, str):
+        tickers = [tickers]
+    if len(tickers) > 50:
+        closes = []
+        for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
+            closes.extend(r.stocks.get_stock_historicals(tickers[i*50: min((i+1)*50, len(tickers))], interval="day", span="week", info='close_price'))
+    else:
+        closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
+    assert(isinstance(closes, list))
+    closes = np.array(closes, dtype='float64').reshape((len(tickers), 5))
+    closes = ((closes[:, -1] / closes[:, -2]) - 1) * 100
     return closes
 
 

@@ -4,7 +4,7 @@ import pandas
 import csv
 from dotenv import load_dotenv
 import os
-import neptune.new as neptune
+import neptune
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from tensorflow.python.keras import Input, Model
@@ -205,7 +205,7 @@ if __name__ == '__main__':
     Y = stockprices[1].reshape((len(stockprices[1]), 1))
     stockprices = (X,Y)
 
-    run = neptune.init(
+    run = neptune.init_run(
         project="elitheknight/Stock-Prediction",
         api_token=NEPTUNE_API_TOKEN,
     )

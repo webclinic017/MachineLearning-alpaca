@@ -9,7 +9,7 @@ import os
 import time
 from datetime import datetime
 import warnings
-import neptune.new as neptune
+import neptune
 import matplotlib
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
