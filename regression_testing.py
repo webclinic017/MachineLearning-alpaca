@@ -145,11 +145,13 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month', t
 
 def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
-    learning_rate = 0.009
-    beta_1 = 0.7       # try 0.5 and 0.7
-    beta_2 = 0.94
+    learning_rate = 0.001
+    beta_1 = 0.9
+    beta_2 = 0.999
     epsilon = 1e-7
     weight_decay = None
+
+    keras.optimizers.Adam()
 
     run[f"model_args/learning_rate"].log(learning_rate)
     run[f"model_args/beta_1"].log(beta_1)
@@ -267,8 +269,9 @@ if __name__ == '__main__':
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
     # date when making the model should always be the current date
     date = date.today().strftime('%Y-%m-%d')
+    trader = Trading.Trader()
 
-    for i in range(1):
+    for i in range(50):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -279,9 +282,7 @@ if __name__ == '__main__':
             capture_stderr=False,
             capture_hardware_metrics=False
         )
-
-        trader = Trading.Trader()
-        cur_epochs = 50
+        cur_epochs = 20 + i
         layer_units = 50
         path = f"Models/GRU/{date}"
 
