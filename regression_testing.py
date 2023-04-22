@@ -82,7 +82,7 @@ def get_data(test: bool = False):
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
-    if test:   # if testing, remove most recent day of data so I can calculate MAPE
+    if test:   # if testing, remove most recent day of data so I can calculate error
         data = np.delete(data, -1, 1)
 
     adjusted_data = np.copy(data)
@@ -93,8 +93,8 @@ def get_data(test: bool = False):
     # have to do this at least once
     adjusted_data = np.delete(adjusted_data, 0, 1)
 
-    if adjusted_data.shape[1] > 19:
-        while adjusted_data.shape[1] > 19:
+    if adjusted_data.shape[1] > 18:
+        while adjusted_data.shape[1] > 18:
             adjusted_data = np.delete(adjusted_data, 0, 1)
 
     y_data = adjusted_data[:, -1, 1]
@@ -136,8 +136,8 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month', t
     # have to do this at least once
     adjusted_data = np.delete(adjusted_data, 0, 1)
 
-    if adjusted_data.shape[1] > 18:
-        while adjusted_data.shape[1] > 18:
+    if adjusted_data.shape[1] > 17:
+        while adjusted_data.shape[1] > 17:
             adjusted_data = np.delete(adjusted_data, 0, 1)
 
     return adjusted_data
@@ -145,9 +145,9 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'month', t
 
 def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
-    # learning_rate = 0.006
-    beta_1 = 0.9
-    beta_2 = 0.999
+    learning_rate = 0.009
+    beta_1 = 0.7       # try 0.5 and 0.7
+    beta_2 = 0.94
     epsilon = 1e-7
     weight_decay = None
 
@@ -170,27 +170,27 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
     print('making model')
     regressionGRU = keras.Sequential()
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
-    regressionGRU.add(GRU(units=layer_units, input_shape=(18, 5)))
+    regressionGRU.add(GRU(units=layer_units, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
     regressionGRU.add(Dense(units=1))
     regressionGRU.compile(loss=loss, optimizer=opt, metrics=metrics)
@@ -225,8 +225,8 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     regressionGRU.fit(scaled_data, y_data, epochs=cur_epochs, verbose=0, validation_split=0.1, shuffle=True)
 
     # save models
-    print('saving model')
-    keras.models.save_model(regressionGRU, f"Models/GRU/{date}")
+    # print('saving model')
+    # keras.models.save_model(regressionGRU, f"Models/GRU/{date}")
 
     return regressionGRU
 
@@ -268,8 +268,7 @@ if __name__ == '__main__':
     # date when making the model should always be the current date
     date = date.today().strftime('%Y-%m-%d')
 
-    for i in range(20):
-        learning_rate = 0.001 + (0.001 * i)
+    for i in range(1):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(

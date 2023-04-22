@@ -111,7 +111,8 @@ def get_last_close_percent_change(tickers: Union[str, list]):
     else:
         closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
     assert(isinstance(closes, list))
-    closes = np.array(closes, dtype='float64').reshape((len(tickers), 5))
+    y_size = len(r.stocks.get_stock_historicals('AAPL', interval="day", span="week", info='close_price'))
+    closes = np.array(closes, dtype='float64').reshape((len(tickers), y_size))
     closes = ((closes[:, -1] / closes[:, -2]) - 1) * 100
     return closes
 
