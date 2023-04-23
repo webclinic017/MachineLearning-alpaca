@@ -3,6 +3,7 @@ import neptune
 from neptune.types import File
 from dotenv import load_dotenv
 import keras.models
+import keras.metrics as metrics
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from keras.layers import Dense, GRU, Dropout
@@ -153,6 +154,8 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
     keras.optimizers.Adam()
 
+    run["model_args/cur_epochs"].log(cur_epochs)
+    run["model_args/layer_units"].log(layer_units)
     run[f"model_args/learning_rate"].log(learning_rate)
     run[f"model_args/beta_1"].log(beta_1)
     run[f"model_args/beta_2"].log(beta_2)
@@ -161,14 +164,13 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
     opt = kop.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
     opt.weight_decay = weight_decay
-
-    loss = losses.MeanSquaredLogarithmicError()
-    metrics = ['accuracy']
+    loss = losses.KLDivergence()    #mean absolute percentage error is next best
+    metric = metrics.sparse_top_k_categorical_accuracy()
     dropout = 0.2
 
     run[f"model_args/dropout"].log(dropout)
     run[f"model_args/loss"].log(loss.name)
-    run[f"model_args/metrics"].log(metrics if metrics else 'None')
+    run[f"model_args/metrics"].log(metric.name if metric else 'None')
 
     print('making model')
     regressionGRU = keras.Sequential()
@@ -195,7 +197,7 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     regressionGRU.add(GRU(units=layer_units, input_shape=(17, 5)))
     regressionGRU.add(Dropout(dropout))
     regressionGRU.add(Dense(units=1))
-    regressionGRU.compile(loss=loss, optimizer=opt, metrics=metrics)
+    regressionGRU.compile(loss=loss, optimizer=opt, metrics=metric)
 
     path = f"Models/GRU/{date}"
     if not os.path.exists(path):
@@ -271,7 +273,7 @@ if __name__ == '__main__':
     date = date.today().strftime('%Y-%m-%d')
     trader = Trading.Trader()
 
-    for i in range(50):
+    for i in range(1):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -282,7 +284,8 @@ if __name__ == '__main__':
             capture_stderr=False,
             capture_hardware_metrics=False
         )
-        cur_epochs = 20 + i
+
+        cur_epochs = 50
         layer_units = 50
         path = f"Models/GRU/{date}"
 
