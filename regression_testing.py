@@ -277,6 +277,7 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     print('saving model')
     keras.models.save_model(regressionGRU, f"Models/GRU/{date}")
 
+
     return regressionGRU
 
 
