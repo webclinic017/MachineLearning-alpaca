@@ -111,8 +111,8 @@ def get_data(test: bool = False):
     # have to do this at least once
     adjusted_data = np.delete(adjusted_data, 0, 1)
 
-    if adjusted_data.shape[1] > 240:
-        while adjusted_data.shape[1] > 240:
+    if adjusted_data.shape[1] > 120:
+        while adjusted_data.shape[1] > 120:
             adjusted_data = np.delete(adjusted_data, 0, 1)
 
     y_data = adjusted_data[:, -1, 1]
@@ -163,7 +163,7 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
 
 def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
-    learning_rate = 0.033
+    learning_rate = 0.001
     beta_1 = 0.9
     beta_2 = 0.999
     epsilon = 1e-7
@@ -196,9 +196,9 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     # regressionGRU.add(Dropout(0.1))
     # regressionGRU.add(GRU(units=40, input_shape=(50, 5), return_sequences=True, activation='relu'))
     # regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=60, input_shape=(50, 5), activation='relu', return_sequences=True))
+    regressionGRU.add(GRU(units=40, input_shape=(50, 5), activation='relu', return_sequences=True))
     # regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=30, input_shape=(50, 5), activation='relu', return_sequences=False))
+    regressionGRU.add(GRU(units=20, input_shape=(50, 5), activation='relu', return_sequences=False))
     # regressionGRU.add(GRU(units=7, input_shape=(50, 5), activation='relu'))
     regressionGRU.add(Dense(units=1, activation='sigmoid'))
 
