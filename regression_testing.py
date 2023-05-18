@@ -111,8 +111,8 @@ def get_data(test: bool = False):
     # have to do this at least once
     adjusted_data = np.delete(adjusted_data, 0, 1)
 
-    if adjusted_data.shape[1] > 120:
-        while adjusted_data.shape[1] > 120:
+    if adjusted_data.shape[1] > days_back:
+        while adjusted_data.shape[1] > days_back:
             adjusted_data = np.delete(adjusted_data, 0, 1)
 
     y_data = adjusted_data[:, -1, 1]
@@ -154,8 +154,8 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
     # have to do this at least once
     adjusted_data = np.delete(adjusted_data, 0, 1)
 
-    if adjusted_data.shape[1] > 50:
-        while adjusted_data.shape[1] > 50:
+    if adjusted_data.shape[1] > window:
+        while adjusted_data.shape[1] > window:
             adjusted_data = np.delete(adjusted_data, 0, 1)
 
     return adjusted_data
@@ -190,16 +190,19 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     # run[f"model_args/metrics"].log(metric.name if metric else 'None')
 
     regressionGRU = keras.Sequential()
-    # regressionGRU.add(GRU(units=160, input_shape=(50, 5), return_sequences=True, activation='relu'))
+    # regressionGRU.add(GRU(units=160, input_shape=(window, 5), return_sequences=True, activation='relu'))
     # regressionGRU.add(Dropout(0.1))
-    # regressionGRU.add(GRU(units=80, input_shape=(50, 5), return_sequences=True, activation='relu'))
+    # regressionGRU.add(GRU(units=80, input_shape=(window, 5), return_sequences=True, activation='relu'))
     # regressionGRU.add(Dropout(0.1))
-    # regressionGRU.add(GRU(units=40, input_shape=(50, 5), return_sequences=True, activation='relu'))
+    # regressionGRU.add(GRU(units=120, input_shape=(window, 5), return_sequences=True, activation='relu'))
     # regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=40, input_shape=(50, 5), activation='relu', return_sequences=True))
-    # regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=20, input_shape=(50, 5), activation='relu', return_sequences=False))
-    # regressionGRU.add(GRU(units=7, input_shape=(50, 5), activation='relu'))
+    regressionGRU.add(GRU(units=60, input_shape=(window, 5), activation='relu', return_sequences=True))
+    regressionGRU.add(Dropout(0.1))
+    regressionGRU.add(GRU(units=30, input_shape=(window, 5), activation='relu', return_sequences=True))
+    regressionGRU.add(Dropout(0.1))
+    regressionGRU.add(GRU(units=15, input_shape=(window, 5), activation='relu', return_sequences=False))
+    regressionGRU.add(Dropout(0.1))
+
     regressionGRU.add(Dense(units=1, activation='sigmoid'))
 
     regressionGRU.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -239,7 +242,7 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     data, y_data = get_data(test=test)
     first = True
     for i in data:
-        x, y = extract_seqX_outcomeY(i, 50)
+        x, y = extract_seqX_outcomeY(i, window)
         x = x.reshape((1, x.shape[0], x.shape[1], x.shape[2]))
         y = y.reshape((1, y.shape[0]))
         if first:
@@ -269,8 +272,7 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     y_train = y_train.reshape((y_train.shape[0], 1))
     # binary_y_data = (y_data > 0).astype(int)
     scaled_y_data = (y_train-np.min(y_train))/(np.max(y_train)-np.min(y_train))
-
-    regressionGRU.fit(scaled_data, scaled_y_data, epochs=cur_epochs, batch_size=32, verbose=0, shuffle=False)
+    regressionGRU.fit(scaled_data, scaled_y_data, epochs=cur_epochs, batch_size=32, verbose=0, shuffle=True)
     # output with binary_y_data is probability between 0-1 of increasing
 
     # save models
@@ -318,6 +320,9 @@ if __name__ == '__main__':
     date = date.today().strftime('%Y-%m-%d')
     trader = Trading.Trader()
 
+    window = 50
+    days_back = 70
+
     for i in range(1):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
@@ -331,7 +336,7 @@ if __name__ == '__main__':
         )
 
         # learning_rate = 0.001 + 0.002*i
-        cur_epochs = 50
+        cur_epochs = 100
         layer_units = 60
         path = f"Models/GRU/{date}"
 
