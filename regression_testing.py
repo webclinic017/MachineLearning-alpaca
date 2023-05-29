@@ -163,9 +163,9 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
 
 def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
-    learning_rate = 0.001
+    learning_rate = 0.00051
     beta_1 = 0.9
-    beta_2 = 0.999
+    beta_2 = 0.45
     epsilon = 1e-7
     weight_decay = None
     #
@@ -196,12 +196,12 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
     # regressionGRU.add(Dropout(0.1))
     # regressionGRU.add(GRU(units=120, input_shape=(window, 5), return_sequences=True, activation='relu'))
     # regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=60, input_shape=(window, 5), activation='relu', return_sequences=True))
+    regressionGRU.add(GRU(units=100, input_shape=(window, 5), activation='relu', return_sequences=True))
+    # regressionGRU.add(Dropout(0.1))
+    # regressionGRU.add(GRU(units=30, input_shape=(window, 5), activation='relu', return_sequences=True))
     regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=30, input_shape=(window, 5), activation='relu', return_sequences=True))
-    regressionGRU.add(Dropout(0.1))
-    regressionGRU.add(GRU(units=15, input_shape=(window, 5), activation='relu', return_sequences=False))
-    regressionGRU.add(Dropout(0.1))
+    regressionGRU.add(GRU(units=40, input_shape=(window, 5), activation='relu', return_sequences=False))
+    # regressionGRU.add(Dropout(0.1))
 
     regressionGRU.add(Dense(units=1, activation='sigmoid'))
 

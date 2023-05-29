@@ -1,8 +1,5 @@
 import numpy as np
 from sklearn.preprocessing import StandardScaler
-import tensorflow as tf
-# from tensorflow.python.keras import Input, Model
-# from tensorflow.python.keras.layers import LSTM, Dense
 from keras import Input, Model
 from keras.layers import LSTM, Dense
 import keras.optimizers as kop
