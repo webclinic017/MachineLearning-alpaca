@@ -165,7 +165,7 @@ def make_model(cur_epochs: int, layer_units: int, test: bool = False):
 
     learning_rate = 0.00051
     beta_1 = 0.9
-    beta_2 = 0.45
+    # beta_2 = 0.45
     epsilon = 1e-7
     weight_decay = None
     #
@@ -323,7 +323,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(1):
+    for i in range(18):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -335,9 +335,9 @@ if __name__ == '__main__':
             capture_hardware_metrics=False
         )
 
-        # learning_rate = 0.001 + 0.002*i
         cur_epochs = 100
         layer_units = 60
+        beta_2 = 0.1 + i*0.05
         path = f"Models/GRU/{date}"
 
         model = make_model(cur_epochs, layer_units, test=True)
@@ -383,6 +383,7 @@ if __name__ == '__main__':
         print(f"correct (%) - 0.5: {correct_signs_half} mean: {correct_signs_mean} median: {correct_signs_median}")
         print(f"mean: {middle}, median: {median}")
         print(f"min_pred: {min(list(predictions.values()))}, max_pred: {max(list(predictions.values()))}")
+        run["min max"].log(f"min_pred: {min(list(predictions.values()))}, max_pred: {max(list(predictions.values()))}")
         # print(errors)
         # print(f"max error: {max_error}")
         # print(average_error)
