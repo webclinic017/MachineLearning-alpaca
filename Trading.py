@@ -1,11 +1,16 @@
 import os
 import time
 from typing import Union
+from uuid import uuid4
+
+import robin_stocks.robinhood
 from robin_stocks import robinhood as r
 import pyotp
 from dotenv import load_dotenv
 from datetime import date, datetime, timedelta
 import numpy as np
+from robin_stocks.robinhood.urls import orders_url
+from robin_stocks.helper import request_post
 
 
 def get_user_info():
@@ -36,15 +41,39 @@ def buy_stock(ticker: str, price: float):
     :param price: float, amount in $ to buy
     :return: dict of order id and information
     """
-    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
-    if response is not None and 'id' not in response:    # try again if didn't work
-        time.sleep(5)
-        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
-    if response is not None and 'id' not in response:    # try again if didn't work
-        time.sleep(5)
-        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    # response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    # if response is not None and 'id' not in response:    # try again if didn't work
+    #     time.sleep(5)
+    #     response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    # if response is not None and 'id' not in response:    # try again if didn't work
+    #     time.sleep(5)
+    #     response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    #
+    # return response
 
-    return response
+    fractional_shares = price / float(robin_stocks.robinhood.get_latest_price(ticker)[0])
+    payload = {
+        'account': robin_stocks.robinhood.load_account_profile(info='url'),
+        'instrument': robin_stocks.robinhood.get_instruments_by_symbols(ticker, info='url')[0],
+        'order_form_version': "2",
+        'preset_percent_limit': "0.05",
+        'symbol': ticker,
+        'price': price,
+        'quantity': fractional_shares,
+        'ref_id': str(uuid4()),
+        'type': "limit",
+        'time_in_force': 'gfd',
+        'trigger': "immediate",
+        'side': "buy",
+        'extended_hours': False
+    }
+
+    url = orders_url()
+    print(url)
+    print(payload)
+    data = request_post(url, payload, json=True, jsonify_data=True)
+
+    return data
 
 
 def buy_stock_by_quantity(ticker: str, quantity: float):

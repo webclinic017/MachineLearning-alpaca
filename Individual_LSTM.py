@@ -116,8 +116,8 @@ class IndividualLSTM:
 
         if self.run is not None:
             # log everything to neptune
-            self.run[f"Predictions/{self.ticker}/LSTM/open"].log(self.open)
-            self.run[f"Predictions/{self.ticker}/LSTM/close"].log(self.close)
+            self.run[f"Predictions/{self.ticker}/LSTM/open"].log(str(self.open))
+            self.run[f"Predictions/{self.ticker}/LSTM/close"].log(str(self.close))
 
     def make_model(self, cur_epochs: int, cur_batch_size: int, window_size: int, layer_units: int, data_var: str, optimizer: kop = 'adam'):
         scaler = StandardScaler()
@@ -178,7 +178,7 @@ class IndividualLSTM:
                          'epochs': cur_epochs
                          }
         if self.run is not None:
-            self.run['LSTMPars'] = cur_LSTM_pars
+            self.run['LSTMPars'] = str(cur_LSTM_pars)
 
         scaled_data = scaler.fit_transform(stockprices[[data_var]].values)
         scaled_data_train = scaled_data[:self.flippedData.shape[0]]
