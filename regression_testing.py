@@ -314,6 +314,7 @@ def predict_from_model(model, path, test: bool = False):
 
 
 if __name__ == '__main__':
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     load_dotenv()
     NEPTUNE_API_TOKEN = os.getenv('NEPTUNE-API-TOKEN')
     # date when making the model should always be the current date

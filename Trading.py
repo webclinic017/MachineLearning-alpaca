@@ -2,7 +2,6 @@ import os
 import time
 from typing import Union
 from uuid import uuid4
-
 import robin_stocks.robinhood
 from robin_stocks import robinhood as r
 import pyotp
