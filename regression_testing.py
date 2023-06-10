@@ -161,78 +161,33 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
     return adjusted_data
 
 
-def make_model(cur_epochs: int, layer_units: int, test: bool = False):
+def make_model(cur_epochs: int, test: bool = False):
 
     learning_rate = 0.00051
     beta_1 = 0.9
-    # beta_2 = 0.45
-    epsilon = 1e-7
-    weight_decay = None
-    #
-    # keras.optimizers.Adam()
-    #
+    beta_2 = 0.85
+    epsilon = 0.0000000128
+    # weight_decay = None
+
     run["model_args/cur_epochs"].log(cur_epochs)
-    # run["model_args/layer_units"].log(layer_units)
     run[f"model_args/learning_rate"].log(learning_rate)
     run[f"model_args/beta_1"].log(beta_1)
     run[f"model_args/beta_2"].log(beta_2)
     run[f"model_args/epsilon"].log(epsilon)
     run[f"model_args/weight_decay"].log(weight_decay if weight_decay else 'None')
-    #
+
     opt = kop.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
     opt.weight_decay = weight_decay
-    # loss = losses.KLDivergence()    #mean absolute percentage error is next best
-    # metric = metrics.SparseTopKCategoricalAccuracy()
-    # dropout = 0.2
-    #
-    # run[f"model_args/dropout"].log(dropout)
-    # run[f"model_args/loss"].log(loss.name)
-    # run[f"model_args/metrics"].log(metric.name if metric else 'None')
 
     regressionGRU = keras.Sequential()
-    # regressionGRU.add(GRU(units=160, input_shape=(window, 5), return_sequences=True, activation='relu'))
-    # regressionGRU.add(Dropout(0.1))
-    # regressionGRU.add(GRU(units=80, input_shape=(window, 5), return_sequences=True, activation='relu'))
-    # regressionGRU.add(Dropout(0.1))
-    # regressionGRU.add(GRU(units=120, input_shape=(window, 5), return_sequences=True, activation='relu'))
-    # regressionGRU.add(Dropout(0.1))
     regressionGRU.add(GRU(units=100, input_shape=(window, 5), activation='relu', return_sequences=True))
     # regressionGRU.add(Dropout(0.1))
-    # regressionGRU.add(GRU(units=30, input_shape=(window, 5), activation='relu', return_sequences=True))
-    regressionGRU.add(Dropout(0.1))
     regressionGRU.add(GRU(units=40, input_shape=(window, 5), activation='relu', return_sequences=False))
     # regressionGRU.add(Dropout(0.1))
-
     regressionGRU.add(Dense(units=1, activation='sigmoid'))
 
     regressionGRU.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
-
     print('making model')
-    # regressionGRU = keras.Sequential()
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, return_sequences=True, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(GRU(units=layer_units, input_shape=(17, 5)))
-    # regressionGRU.add(Dropout(dropout))
-    # regressionGRU.add(Dense(units=1))
-    # regressionGRU.compile(loss=loss, optimizer=opt, metrics=metric)
 
     path = f"Models/GRU/{date}"
     if not os.path.exists(path):
@@ -324,7 +279,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(18):
+    for i in range(30):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -338,10 +293,10 @@ if __name__ == '__main__':
 
         cur_epochs = 100
         layer_units = 60
-        beta_2 = 0.1 + i*0.05
+        weight_decay = 1e-10 * (2**i)
         path = f"Models/GRU/{date}"
 
-        model = make_model(cur_epochs, layer_units, test=True)
+        model = make_model(cur_epochs, test=True)
         # model = keras.models.load_model(path)
         predictions = predict_from_model(model, path, test=True)
 
@@ -350,7 +305,7 @@ if __name__ == '__main__':
 
         tickers = [i.strip() for i in tickers]
         # errors = {}
-        true_vals = dict(zip(tickers, list(np.array(Trading.get_last_close_percent_change(tickers)) > 0)))
+        true_vals = dict(zip(tickers, list(np.array(Trading.get_last_close_percent_change(tickers)))))
         print(true_vals)
         middle = np.mean(list(predictions.values()))
         median = np.median(list(predictions.values()))
@@ -359,11 +314,11 @@ if __name__ == '__main__':
         correct_signs_mean = 0
         correct_signs_median = 0
         for k, v in predictions.items():
-            if true_vals[k] == (v > 0.5):
+            if (true_vals[k] > 0)== (v > 0.5):
                 correct_signs_half += 1
-            if true_vals[k] == (v > middle):
+            if (true_vals[k] > 0) == (v > middle):
                 correct_signs_mean += 1
-            if true_vals[k] == (v > median):
+            if (true_vals[k] > 0) == (v > median):
                 correct_signs_median += 1
             run[f"Predictions/{k}"].log(v)
             # errors[k] = calculate_difference(true_vals[k], v)
@@ -375,8 +330,8 @@ if __name__ == '__main__':
         # average_error = np.mean(list(errors.values()))
         # max_error = np.max(list(errors.values()))
         run[f"correct_signs (%)"].log(f"correct (%) - 0.5: {correct_signs_half} mean: {correct_signs_mean} median: {correct_signs_median}")
-        run[f"preds"].log(predictions_binary)
-        run[f"true"].log(true_vals)
+        run[f"preds"].log(str(predictions_binary))
+        run[f"true"].log(str(true_vals))
         # run[f"average_error"].log(average_error)
         # run[f"max_error"].log(max_error)
         print(predictions)
