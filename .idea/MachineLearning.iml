@@ -69,6 +69,7 @@
       <excludeFolder url="file://$MODULE_DIR$/.neptune/async/run__98183920-9524-4b3d-a68e-71dc39f07ed1" />
       <excludeFolder url="file://$MODULE_DIR$/.neptune/async/run__98271120-8c78-42e1-8cf5-5451a9792008" />
       <excludeFolder url="file://$MODULE_DIR$/.neptune/async/run__98271267-c9cc-45e0-8d8e-fba10c32a34e" />
+      <excludeFolder url="file://$MODULE_DIR$/.neptune" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

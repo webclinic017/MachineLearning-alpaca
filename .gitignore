@@ -1,3 +1,4 @@
 .env
 .neptune
-Data/*
+/Models/
+/Data/
