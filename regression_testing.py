@@ -163,11 +163,11 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
 
 def make_model(cur_epochs: int, test: bool = False):
 
-    learning_rate = 0.00051
+    learning_rate = 0.0005
     beta_1 = 0.9
     beta_2 = 0.85
     epsilon = 0.0000000128
-    # weight_decay = None
+    weight_decay = None
 
     run["model_args/cur_epochs"].log(cur_epochs)
     run[f"model_args/learning_rate"].log(learning_rate)
@@ -279,7 +279,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(30):
+    for i in range(11):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
         cur_epochs = 100
         layer_units = 60
-        weight_decay = 1e-10 * (2**i)
+
         path = f"Models/GRU/{date}"
 
         model = make_model(cur_epochs, test=True)
@@ -323,6 +323,26 @@ if __name__ == '__main__':
             run[f"Predictions/{k}"].log(v)
             # errors[k] = calculate_difference(true_vals[k], v)
             # run[f"Prediction_Errors/{k}"].log(errors[k])
+
+        sorted_preds = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
+
+        ind_pos_from_mean = 0
+
+        for j in range(len(sorted_preds)):
+            if sorted_preds[j][1] <= middle:
+                ind_pos_from_mean = j
+                break
+
+        pos_sorted_preds = sorted_preds[:ind_pos_from_mean]
+        order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 2 / 3)]
+        print(f"order_stocks: {order_stocks}")
+        eq_trade_results = sum(true_vals[o[0]] for o in order_stocks)
+        run[f"eq_trade_results"].log(eq_trade_results)
+        print(f"eq_trade_results: {eq_trade_results}")
+
+        eq_pchange = sum(1+(true_vals[o[0]]/100) for o in order_stocks)/len(order_stocks)
+        run[f"eq_pchange"].log(eq_pchange)
+        print(f"eq_pchange: {eq_pchange}")
 
         correct_signs_half = correct_signs_half / len(predictions) * 100
         correct_signs_median = correct_signs_median / len(predictions) * 100
