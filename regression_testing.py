@@ -279,7 +279,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(11):
+    for i in range(1):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -335,12 +335,13 @@ if __name__ == '__main__':
 
         pos_sorted_preds = sorted_preds[:ind_pos_from_mean]
         order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 2 / 3)]
+        order_stocks = [i[0] for i in order_stocks]
         print(f"order_stocks: {order_stocks}")
-        eq_trade_results = sum(true_vals[o[0]] for o in order_stocks)
+        eq_trade_results = sum(true_vals[o] for o in order_stocks)
         run[f"eq_trade_results"].log(eq_trade_results)
         print(f"eq_trade_results: {eq_trade_results}")
 
-        eq_pchange = sum(1+(true_vals[o[0]]/100) for o in order_stocks)/len(order_stocks)
+        eq_pchange = sum(1+(true_vals[o]/100) for o in order_stocks)/len(order_stocks)
         run[f"eq_pchange"].log(eq_pchange)
         print(f"eq_pchange: {eq_pchange}")
 
