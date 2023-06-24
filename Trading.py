@@ -1,15 +1,89 @@
 import os
 import time
 from typing import Union
-from uuid import uuid4
-import robin_stocks.robinhood
+import robin_stocks
 from robin_stocks import robinhood as r
 import pyotp
 from dotenv import load_dotenv
 from datetime import date, datetime, timedelta
 import numpy as np
-from robin_stocks.robinhood.urls import orders_url
-from robin_stocks.helper import request_post
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
+
+load_dotenv()
+
+alpaca_key = os.getenv('ALPACA-KEY-P')
+alpaca_secret = os.getenv('ALPACA-SECRET-P')
+trading_client = TradingClient(alpaca_key, alpaca_secret, paper=True)
+
+
+def get_alpaca_account_info():
+    return trading_client.get_account()
+
+
+def get_alpaca_postitions():
+    return trading_client.get_all_positions()
+
+
+def buy_alpaca(ticker: str, price: float):
+    market_order_data = MarketOrderRequest(
+        symbol=ticker,
+        notional=price,
+        side=OrderSide.BUY,
+        time_in_force=TimeInForce.DAY
+    )
+    market_order = trading_client.submit_order(market_order_data)
+
+    return market_order
+
+
+def buy_alpaca_by_quantity(ticker: str, quantity: float):
+    market_order_data = MarketOrderRequest(
+        symbol=ticker,
+        qty=quantity,
+        side=OrderSide.BUY,
+        time_in_force=TimeInForce.DAY
+    )
+    market_order = trading_client.submit_order(market_order_data)
+
+    return market_order
+
+
+def sell_alpaca_by_quantity(ticker: str, quantity: float = None):
+    if quantity is None:
+        quantity = float(trading_client.get_open_position(ticker).qty)
+    market_order_data = MarketOrderRequest(
+        symbol=ticker,
+        qty=quantity,
+        side=OrderSide.SELL,
+        time_in_force=TimeInForce.DAY
+    )
+    market_order = trading_client.submit_order(market_order_data)
+
+    return market_order
+
+
+def alpaca_sell_all_stocks():
+    details = []
+    for pos in trading_client.get_all_positions():
+        details.append(sell_alpaca_by_quantity(pos.symbol, quantity=float(pos.qty)))
+        time.sleep(2)
+
+    return details
+
+
+def check_alpaca_order(order_id):
+    try:
+        order = trading_client.get_order_by_id(order_id)
+        if order.filled_at != 'None':
+            return 1
+        elif order.failed_at != 'None' or order.canceled_at != 'None':
+            return 3
+        else:
+            return 2
+    except:
+        return 0
 
 
 def get_user_info():
@@ -30,7 +104,7 @@ def get_stocks_current_price(stocks: Union[str, list]):
     :param stocks: stock symbol or list of stock symbols
     :return: current/latest price of stock(s)
     """
-    return r.stocks.get_latest_price(stocks)
+    return robin_stocks.robinhood.stocks.get_latest_price(stocks)
 
 
 def buy_stock(ticker: str, price: float):
@@ -40,17 +114,16 @@ def buy_stock(ticker: str, price: float):
     :param price: float, amount in $ to buy
     :return: dict of order id and information
     """
-    # response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
-    # if response is not None and 'id' not in response:    # try again if didn't work
-    #     time.sleep(5)
-    #     response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
-    # if response is not None and 'id' not in response:    # try again if didn't work
-    #     time.sleep(5)
-    #     response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
-    #
-    # return response
+    response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    if response is not None and 'id' not in response:  # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    if response is not None and 'id' not in response:  # try again if didn't work
+        time.sleep(5)
+        response = r.order_buy_fractional_by_price(symbol=ticker, amountInDollars=price)
+    return response
 
-    fractional_shares = price / float(robin_stocks.robinhood.get_latest_price(ticker)[0])
+    # fractional_shares = price / float(robin_stocks.robinhood.get_latest_price(ticker)[0])
     payload = {
         'account': robin_stocks.robinhood.load_account_profile(info='url'),
         'instrument': robin_stocks.robinhood.get_instruments_by_symbols(ticker, info='url')[0],
@@ -66,6 +139,16 @@ def buy_stock(ticker: str, price: float):
         'side': "buy",
         'extended_hours': False
     }
+    payload = {'account': 'https://api.robinhood.com/accounts/748152899/',
+               'instrument': 'https://api.robinhood.com/instruments/450dfc6d-5510-4d40-abfb-f633b7d9be3e/',
+               'symbol': 'AAPL',
+               'price': 185.72,
+               'quantity': 0.005384,
+               'ref_id': '01ea0147-0024-4b96-b689-65da2572729c',
+               'type': 'market',
+               'stop_price': None, 'time_in_force': 'gfd', 'trigger': 'immediate', 'side': 'buy',
+               'extended_hours': False,
+               'order_form_version': '2', 'preset_percent_limit': '0.05'}
 
     url = orders_url()
     print(url)
@@ -118,13 +201,16 @@ def get_last_close_price(tickers: Union[str, list]):
         tickers = [tickers]
     if len(tickers) > 50:
         closes = []
-        for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
-            closes.extend(r.stocks.get_stock_historicals(tickers[i*50: min((i+1)*50, len(tickers))], interval="day", span="week", info='close_price'))
+        for i in range(len(tickers) // 50 + 1 if len(tickers) % 50 != 0 else len(tickers) // 50):
+            closes.extend(
+                robin_stocks.robinhood.stocks.get_stock_historicals(tickers[i * 50: min((i + 1) * 50, len(tickers))],
+                                                                    interval="day", span="week", info='close_price'))
     else:
-        closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
-    assert(isinstance(closes, list))
-    days = len(closes)//len(tickers)
-    closes = closes[days-1::days]
+        closes = robin_stocks.robinhood.stocks.get_stock_historicals(tickers, interval="day", span="week",
+                                                                     info='close_price')
+    assert (isinstance(closes, list))
+    days = len(closes) // len(tickers)
+    closes = closes[days - 1::days]
     return closes
 
 
@@ -134,12 +220,16 @@ def get_last_close_percent_change(tickers: Union[str, list]):
         tickers = [tickers]
     if len(tickers) > 50:
         closes = []
-        for i in range(len(tickers)//50 + 1 if len(tickers) % 50 != 0 else len(tickers)//50):
-            closes.extend(r.stocks.get_stock_historicals(tickers[i*50: min((i+1)*50, len(tickers))], interval="day", span="week", info='close_price'))
+        for i in range(len(tickers) // 50 + 1 if len(tickers) % 50 != 0 else len(tickers) // 50):
+            closes.extend(
+                robin_stocks.robinhood.stocks.get_stock_historicals(tickers[i * 50: min((i + 1) * 50, len(tickers))],
+                                                                    interval="day", span="week", info='close_price'))
     else:
-        closes = r.stocks.get_stock_historicals(tickers, interval="day", span="week", info='close_price')
-    assert(isinstance(closes, list))
-    y_size = len(r.stocks.get_stock_historicals('AAPL', interval="day", span="week", info='close_price'))
+        closes = robin_stocks.robinhood.stocks.get_stock_historicals(tickers, interval="day", span="week",
+                                                                     info='close_price')
+    assert (isinstance(closes, list))
+    y_size = len(
+        robin_stocks.robinhood.stocks.get_stock_historicals('AAPL', interval="day", span="week", info='close_price'))
     closes = np.array(closes, dtype='float64').reshape((len(tickers), y_size))
     closes = ((closes[:, -1] / closes[:, -2]) - 1) * 100
     return closes
@@ -161,7 +251,7 @@ def check_market_open(dateToday=None):
 
 def check_market_tomorrow():
     tomorrow = str(date.today() + timedelta(days=1))
-    market_data = r.markets.get_market_hours('XNYS', tomorrow)
+    market_data = robin_stocks.robinhood.markets.get_market_hours('XNYS', tomorrow)
 
     if not market_data['is_open']:
         return None
@@ -177,7 +267,7 @@ def logout():
 
 def check_order(order_id):
     try:
-        order = r.orders.get_stock_order_info(order_id)
+        order = robin_stocks.robinhood.orders.get_stock_order_info(order_id)
         if order['state'] == 'filled':
             return 1
         elif order['state'] == 'unconfirmed':
@@ -204,10 +294,10 @@ def get_historicals(tickers: Union[str, list], span: str = 'week', interval: str
 class Trader:
 
     def __init__(self):
-        load_dotenv()
         username = os.getenv('ROBINHOOD-USERNAME')
         password = os.getenv('ROBINHOOD-PASSWORD')
         robin_totp = os.getenv('ROBINHOOD-TOTP')
+
         # verify
         totp = pyotp.TOTP(robin_totp).now()
 

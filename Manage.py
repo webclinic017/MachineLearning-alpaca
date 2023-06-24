@@ -3,7 +3,6 @@ import time
 import neptune
 from multiprocessing import Pool
 from Individual_LSTM import IndividualLSTM
-from Trading import Trader
 import Trading
 from datetime import datetime, date
 from threading import Thread, Lock
@@ -87,6 +86,28 @@ class newsThread(Thread):
 
     def run(self):
         self.sentiment = get_news_sentiment()
+
+
+def order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest):
+    floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
+    remaining_money = money_for_close
+    for i in range(len(close_stocks_to_invest)):
+        amount = round(money_for_close * (close_stocks_to_invest[i][1] / percent_close) + floating_additions, 5)
+        if amount / total_money > 0.1:
+            new_amount = total_money * 0.1
+            floating_additions += (amount - new_amount) / (len(close_stocks_to_invest) - i)
+            amount = new_amount
+        if amount < 1.00:
+            amount = 1.00
+
+        if amount > remaining_money:
+            break
+
+        remaining_money -= amount
+
+        orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
+
+        return remaining_money
 
 
 class Manager:
@@ -183,7 +204,7 @@ class Manager:
 
             print(f"selling all stocks at: {datetime.now()}")
             self.run["status"].log(f"selling all stocks at: {datetime.now()}")
-            self.record_order_details(Trading.sell_all_stocks(), buying=False)
+            self.record_order_details(Trading.alpaca_sell_all_stocks(), buying=False)
 
             self.open_sell_amount = 0
             self.orders_for_day = None
@@ -362,7 +383,7 @@ class Manager:
         open_stocks_to_invest = [i for i in stocks_to_invest if i[2]]
         close_stocks_to_invest = [i for i in stocks_to_invest if not i[2]]
 
-        user_info = Trading.get_user_info()
+        user_info = Trading.get_alpaca_account_info()
         total_money = float(user_info['equity'])
 
         money_for_open = float(user_info['cash']) + self.open_sell_amount
@@ -371,43 +392,9 @@ class Manager:
         percent_open = sum(i[1] for i in open_stocks_to_invest)
         percent_close = sum(i[1] for i in close_stocks_to_invest)
 
-        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
-        remaining_money = money_for_open
-        for i in range(len(open_stocks_to_invest)):
-            amount = round(money_for_open * (open_stocks_to_invest[i][1] / percent_open) + floating_additions, 5)
-            if amount / total_money > 0.1:
-                new_amount = total_money * 0.1
-                floating_additions += (amount - new_amount) / (len(open_stocks_to_invest) - i)
-                amount = new_amount
-            if amount < 1.00:
-                amount = 1.00
+        money_for_close += order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest)
 
-            if amount > remaining_money:
-                break
-
-            remaining_money -= amount
-
-            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
-
-        money_for_close += remaining_money
-
-        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
-        remaining_money = money_for_close
-        for i in range(len(close_stocks_to_invest)):
-            amount = round(money_for_close * (close_stocks_to_invest[i][1] / percent_close) + floating_additions, 5)
-            if amount / total_money > 0.1:
-                new_amount = total_money * 0.1
-                floating_additions += (amount - new_amount) / (len(close_stocks_to_invest) - i)
-                amount = new_amount
-            if amount < 1.00:
-                amount = 1.00
-
-            if amount > remaining_money:
-                break
-
-            remaining_money -= amount
-
-            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
+        order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest)
 
         print(f"Orders: {orders}")
 
@@ -490,18 +477,13 @@ class Manager:
                 f.write(f"{record}/n")
 
     def execute_orders(self, orders, buying=True):
-        # if Trading.get_my_stocks():
-        #     # if I still have any stocks, sell them so I can make all my orders
-        #     selling_info = Trading.sell_all_stocks()
-        #     self.record_order_details(selling_info, buying=False)
-        #     time.sleep(120)
 
         details = []
         results = []
 
         if buying:
             for order in orders:
-                detail = Trading.buy_stock(ticker=order[0], price=order[1])
+                detail = Trading.buy_alpaca(ticker=order[0], price=order[1])
                 details.append(detail)
                 if detail is not None and 'quantity' in detail:
                     results.append((order[0], detail['quantity'], order[3], detail['id']))
@@ -509,7 +491,7 @@ class Manager:
                 time.sleep(10)
         else:
             for order in orders:
-                details.append(Trading.sell_stock_by_quantity(ticker=order[0], quantity=order[1]))
+                details.append(Trading.sell_alpaca_by_quantity(ticker=order[0], quantity=order[1]))
                 time.sleep(10)
 
         if buying and not results:
@@ -538,7 +520,7 @@ class Manager:
                 elif status == 3:
                     self.run["retries"].log(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
                     print(f"buying order with id: {order[3]}, stock: {ticker} again because it failed")
-                    response = Trading.buy_stock_by_quantity(ticker, float(order[1]))
+                    response = Trading.buy_alpaca_by_quantity(ticker, float(order[1]))
                     self.record_order_details(response, buying=True)
                     order_lock.acquire()
                     orders[ticker] = (order[0], response['quantity'], order[3], response['id'])

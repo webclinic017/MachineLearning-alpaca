@@ -168,22 +168,26 @@ def make_model(cur_epochs: int, test: bool = False):
     beta_2 = 0.85
     epsilon = 0.0000000128
     weight_decay = None
+    # dropout = 0.1
 
     run["model_args/cur_epochs"].log(cur_epochs)
     run[f"model_args/learning_rate"].log(learning_rate)
     run[f"model_args/beta_1"].log(beta_1)
     run[f"model_args/beta_2"].log(beta_2)
     run[f"model_args/epsilon"].log(epsilon)
+    run[f"model_args/dropout"].log(dropout)
     run[f"model_args/weight_decay"].log(weight_decay if weight_decay else 'None')
 
     opt = kop.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2, epsilon=epsilon)
     opt.weight_decay = weight_decay
 
     regressionGRU = keras.Sequential()
+    # regressionGRU.add(GRU(units=160, input_shape=(window, 5), activation='relu', return_sequences=True))
+    # regressionGRU.add(Dropout(0.1))
     regressionGRU.add(GRU(units=100, input_shape=(window, 5), activation='relu', return_sequences=True))
-    # regressionGRU.add(Dropout(0.1))
+    regressionGRU.add(Dropout(dropout))
     regressionGRU.add(GRU(units=40, input_shape=(window, 5), activation='relu', return_sequences=False))
-    # regressionGRU.add(Dropout(0.1))
+    regressionGRU.add(Dropout(dropout))
     regressionGRU.add(Dense(units=1, activation='sigmoid'))
 
     regressionGRU.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -279,7 +283,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(1):
+    for i in range(3):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -293,6 +297,7 @@ if __name__ == '__main__':
 
         cur_epochs = 100
         layer_units = 60
+        dropout = 0.1
 
         path = f"Models/GRU/{date}"
 
@@ -334,7 +339,7 @@ if __name__ == '__main__':
                 break
 
         pos_sorted_preds = sorted_preds[:ind_pos_from_mean]
-        order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 2 / 3)]
+        order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 1 / 2)]
         order_stocks = [i[0] for i in order_stocks]
         print(f"order_stocks: {order_stocks}")
         eq_trade_results = sum(true_vals[o] for o in order_stocks)
