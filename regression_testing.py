@@ -1,18 +1,19 @@
 import os
 import neptune
-from neptune.types import File
 from dotenv import load_dotenv
 import keras.models
-import keras.metrics as metrics
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from keras.layers import Dense, GRU, Dropout
-import keras.losses as losses
 import keras.optimizers as kop
 from joblib import dump, load
 from datetime import date, datetime
 import Trading
 from typing import Union
+
+from Individual_LSTM import IndividualLSTM
+import Manage
+import Testing
 
 
 def extract_seqX_outcomeY(data, N):
@@ -100,7 +101,8 @@ def get_data(test: bool = False):
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
-    if test:   # if testing, remove most recent day of data so I can calculate error
+    if test:   # if testing, remove most recent day of data so I can calculate error, go back 2 if testing with Individual_LSTM
+        data = np.delete(data, -1, 1)
         data = np.delete(data, -1, 1)
 
     adjusted_data = np.copy(data)
@@ -143,7 +145,8 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
 
     data = np.array(np.split(data, len(tickers)), dtype='float64')
 
-    if test:   # if testing, remove most recent day of data so I can calculate MAPE
+    if test:   # if testing, remove most recent day of data so I can calculate MAPE, 2 if testing with Individual_LSTM
+        data = np.delete(data, -1, 1)
         data = np.delete(data, -1, 1)
 
     adjusted_data = np.copy(data)
@@ -161,14 +164,16 @@ def get_prediction_data(tickers: Union[str, list] = None, span: str = 'year', te
     return adjusted_data
 
 
-def make_model(cur_epochs: int, test: bool = False):
+def make_model(test: bool = False):
 
     learning_rate = 0.0005
     beta_1 = 0.9
     beta_2 = 0.85
     epsilon = 0.0000000128
     weight_decay = None
-    # dropout = 0.1
+
+    cur_epochs = 100
+    dropout = 0.1
 
     run["model_args/cur_epochs"].log(cur_epochs)
     run[f"model_args/learning_rate"].log(learning_rate)
@@ -283,7 +288,7 @@ if __name__ == '__main__':
     window = 50
     days_back = 70
 
-    for i in range(3):
+    for iteration in range(1):
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
         run = neptune.init_run(
@@ -295,13 +300,9 @@ if __name__ == '__main__':
             capture_hardware_metrics=False
         )
 
-        cur_epochs = 100
-        layer_units = 60
-        dropout = 0.1
-
         path = f"Models/GRU/{date}"
 
-        model = make_model(cur_epochs, test=True)
+        model = make_model(test=True)
         # model = keras.models.load_model(path)
         predictions = predict_from_model(model, path, test=True)
 
@@ -319,13 +320,13 @@ if __name__ == '__main__':
         correct_signs_mean = 0
         correct_signs_median = 0
         for k, v in predictions.items():
-            if (true_vals[k] > 0)== (v > 0.5):
+            if (true_vals[k] > 0) == (v > 0.5):
                 correct_signs_half += 1
             if (true_vals[k] > 0) == (v > middle):
                 correct_signs_mean += 1
             if (true_vals[k] > 0) == (v > median):
                 correct_signs_median += 1
-            run[f"Predictions/{k}"].log(v)
+            run[f"Predictions/{k}/GRU"].log(v)
             # errors[k] = calculate_difference(true_vals[k], v)
             # run[f"Prediction_Errors/{k}"].log(errors[k])
 
@@ -342,6 +343,7 @@ if __name__ == '__main__':
         order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 1 / 2)]
         order_stocks = [i[0] for i in order_stocks]
         print(f"order_stocks: {order_stocks}")
+        run["order_stocks/1"].log(order_stocks)
         eq_trade_results = sum(true_vals[o] for o in order_stocks)
         run[f"eq_trade_results"].log(eq_trade_results)
         print(f"eq_trade_results: {eq_trade_results}")
@@ -369,6 +371,18 @@ if __name__ == '__main__':
         # print(errors)
         # print(f"max error: {max_error}")
         # print(average_error)
+
+        # test in combination with other resources
+        load_dotenv()
+        ALPHA_VANTAGE_TOKEN = os.getenv('ALPHA-VANTAGE-API-TOKEN')
+
+        stock_dict_predictions, news_sentiment = Testing.predict_stock_prices(run, lines=order_stocks)
+
+        Testing.calculate_prediction_error(stock_dict_predictions, run)
+
+        orders_to_buy = Testing.create_orders(stock_dict_predictions, news_sentiment, run)
+
+        Testing.calculate_order_results(orders_to_buy, run)
 
         run.stop()
 

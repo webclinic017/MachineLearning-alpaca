@@ -1,4 +1,6 @@
 import time
+# import ssl
+# ssl._create_default_https_context = ssl._create_unverified_context
 from finvizfinance.quote import finvizfinance as fvf
 # import nltk
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -96,7 +98,7 @@ def average_sentiments(sentiments: dict):
     average_sentiment = sum([i for i in sentiments.values()]) / len(sentiments)
     averaged_sentiment = {}
     for k, v in sentiments.items():
-        averaged_sentiment[k] = 0.00 if abs(v) < 0.00001 else v - (average_sentiment / 2)
+        averaged_sentiment[k] = v - average_sentiment
 
     return averaged_sentiment
 
