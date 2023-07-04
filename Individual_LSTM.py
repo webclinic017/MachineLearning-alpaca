@@ -5,7 +5,7 @@ from keras.layers import LSTM, Dense
 import keras.optimizers as kop
 
 
-def extract_seqX_outcomeY(data, N, offset):
+def extract_seqX_outcomeY(data, N):
     """
     Split time-series into training sequence X and outcome value Y
     :param data: dataset
@@ -15,7 +15,7 @@ def extract_seqX_outcomeY(data, N, offset):
     """
     X, y = [], []
 
-    for i in range(offset, len(data)):
+    for i in range(N, len(data)):
         X.append(data[i - N:i])
         y.append(data[i])
 
@@ -60,7 +60,7 @@ def preprocess_testdata(data, scaler, window_size, data_var: str):
 
 class IndividualLSTM:
 
-    def __init__(self, ticker, data, run):
+    def __init__(self, ticker, data, run, cur_pars):
         self.close = {
             'predicted_price': None,
             'change_percentage': None,
@@ -79,6 +79,13 @@ class IndividualLSTM:
             'second_change_price': None,
         }
 
+        self.cur_epochs = cur_pars['cur_epochs']
+        self.window_size = cur_pars['window_size']
+        self.learning_rate = cur_pars['learning_rate']
+        self.beta_1 = cur_pars['beta_1']
+        self.beta_2 = cur_pars['beta_2']
+        self.epsilon = cur_pars['epsilon']
+
         self.run = run
         self.ticker = ticker.strip()
         self.flippedData = data.copy().loc[::-1].reset_index(drop=True)
@@ -88,10 +95,21 @@ class IndividualLSTM:
         """
         runs whole LSTM prediction process and saves prediction to object variables
         """
-        cur_epochs = 31
-        cur_batch_size = 38
-        window_size = 96
-        layer_units = 38
+        # cur_epochs = 50
+        # window_size = 50
+        # learning_rate = 0.001
+        # beta_1 = 0.9
+        # beta_2 = 0.999
+        # epsilon = 1e-07
+        # weight_decay = None
+
+        # self.run['LSTMpars/cur_epochs'].log(self.cur_epochs)
+        # self.run['LSTMpars/window_size'].log(self.window_size)
+        # self.run['LSTMpars/learning_rate'].log(self.learning_rate)
+        # self.run['LSTMpars/beta_1'].log(self.beta_1)
+        # self.run['LSTMpars/beta_2'].log(self.beta_2)
+        # self.run['LSTMpars/epsilon'].log(self.epsilon)
+        # self.run['LSTMpars/weight_decay'].log(weight_decay)
 
         # default adam settings
         # learning_rate = 0.001,
@@ -108,23 +126,34 @@ class IndividualLSTM:
         # ema_overwrite_frequency = None,
         # jit_compile = True
 
-        optimizer = kop.Adam(learning_rate=0.006, beta_1=0.850, beta_2=0.999, epsilon=1e-07)
-        optimizer.weight_decay = 0.004
+        optimizer = kop.Adam(learning_rate=self.learning_rate, beta_1=self.beta_1, beta_2=self.beta_2, epsilon=self.epsilon)
+        # optimizer.weight_decay = weight_decay
 
-        self.close = self.make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'close', optimizer)
-        self.open = self.make_model(cur_epochs, cur_batch_size, window_size, layer_units, 'open', optimizer)
+        self.close = self.make_model(self.cur_epochs, self.window_size, 'close', optimizer)
+        self.open = self.make_model(self.cur_epochs, self.window_size, 'open', optimizer)
 
         if self.run is not None:
             # log everything to neptune
             self.run[f"Predictions/{self.ticker}/LSTM/open"].log(str(self.open))
             self.run[f"Predictions/{self.ticker}/LSTM/close"].log(str(self.close))
 
-    def make_model(self, cur_epochs: int, cur_batch_size: int, window_size: int, layer_units: int, data_var: str, optimizer: kop = 'adam'):
+    def make_model(self, cur_epochs: int, window_size: int, data_var: str, optimizer: kop = 'adam'):
         scaler = StandardScaler()
 
-        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, data_var, cur_batch_size=cur_batch_size, cur_epochs=cur_epochs, window_size=window_size, layer_units=layer_units, optimizer=optimizer)
-        model = self.run_lstm(x_train, layer_units=layer_units, optimizer=optimizer)
-        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=cur_batch_size, verbose=0, validation_split=0.1, shuffle=True)
+        x_train, y_train = self.lstm_get_train_data(self.flippedData, scaler, data_var, window_size=window_size)
+
+        inp = Input(shape=(x_train.shape[1], 1))
+        x = LSTM(units=60, return_sequences=True)(inp)
+        x = LSTM(units=30)(x)
+        out = Dense(1, activation='linear')(x)
+
+        model = Model(inp, out)
+        model.compile(loss='mean_squared_error', optimizer=optimizer)
+
+        # if self.run is not None:
+        #     model.summary(print_fn=lambda z: self.run[f"Predictions/{self.ticker}/LSTM/model_summary"].log(z))
+
+        model.fit(x_train, y_train, epochs=cur_epochs, batch_size=32, verbose=0, validation_split=0.1, shuffle=True)
         x_test = preprocess_testdata(data=self.flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
 
         predicted_price_array = model.predict(x_test, verbose=0)
@@ -159,53 +188,26 @@ class IndividualLSTM:
             'second_change_price': second_change_price
         }
 
-    def lstm_get_train_data(self, stockprices, scaler, data_var: str, layer_units=50, optimizer: kop = 'adam', cur_epochs=15, cur_batch_size=20, window_size=50):
+    def lstm_get_train_data(self, stockprices, scaler, data_var: str, window_size=50):
         """
         logs LSTM parameters to neptune and prepares data for model.fit()
         :param data_var: csv column name
         :param stockprices: stock data
         :param scaler: StandardScaler object
-        :param layer_units: layer units
-        :param optimizer: model optimizer
-        :param cur_epochs: # of epochs
-        :param cur_batch_size: batch size
         :param window_size: window size
         :return: x and y training arrays to be passing into model.fit()
         """
-        cur_LSTM_pars = {'units': layer_units,
-                         'optimizer': optimizer,
-                         'batch_size': cur_batch_size,
-                         'epochs': cur_epochs
-                         }
-        if self.run is not None:
-            self.run['LSTMPars'] = str(cur_LSTM_pars)
+
+        # cur_LSTM_pars = {'units': layer_units,
+        #                  'optimizer': optimizer,
+        #                  'batch_size': cur_batch_size,
+        #                  'epochs': cur_epochs
+        #                  }
+        # if self.run is not None:
+        #     self.run['LSTMPars'] = str(cur_LSTM_pars)
 
         scaled_data = scaler.fit_transform(stockprices[[data_var]].values)
         scaled_data_train = scaled_data[:self.flippedData.shape[0]]
 
-        x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size, window_size)
+        x_train, y_train = extract_seqX_outcomeY(scaled_data_train, window_size)
         return x_train, y_train
-
-    def run_lstm(self, x_train, layer_units=50, optimizer: kop = 'adam'):
-        """
-        Builds machine learning model
-        :param optimizer: optimizer instance, defaults to 'adam'
-        :param x_train: training set, needed for its shape for input values
-        :param layer_units: # layer_units
-        :param logNeptune: unless False, will log model summary to Neptune
-        :return: Model
-        """
-        inp = Input(shape=(x_train.shape[1], 1))
-
-        x = LSTM(units=layer_units, return_sequences=True)(inp)
-        x = LSTM(units=layer_units)(x)
-
-        out = Dense(1, activation='linear')(x)
-        model = Model(inp, out)
-
-        model.compile(loss='mean_squared_error', optimizer=optimizer)
-
-        if self.run is not None:
-            model.summary(print_fn=lambda z: self.run[f"Predictions/{self.ticker}/LSTM/model_summary"].log(z))
-
-        return model

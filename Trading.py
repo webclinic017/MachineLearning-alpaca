@@ -11,7 +11,7 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockLatestBarRequest, StockLatestQuoteRequest, StockLatestTradeRequest
+from alpaca.data.requests import StockLatestBarRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame
 
 load_dotenv()
@@ -88,6 +88,15 @@ def check_alpaca_order(order_id):
             return 2
     except:
         return 0
+
+
+def alpaca_get_historicals(tickers: Union[str, list], start: int = 365):
+    if isinstance(tickers, str):
+        tickers = [tickers]
+    s = datetime.utcnow() - timedelta(days=start)
+    timeframe = TimeFrame.Day
+    req = StockBarsRequest(symbol_or_symbols=tickers, timeframe=timeframe, start=s)
+    return historical_client.get_stock_bars(req)
 
 
 def get_user_info():
