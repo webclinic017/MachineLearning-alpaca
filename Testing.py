@@ -191,9 +191,9 @@ def predict_stock_prices(run, cur_pars, lines=None):
     groups = num_tickers // num_processes + 1
     stock_predictions = []
 
+    pool = Pool(processes=num_processes)
     for i in range(groups):
         # multiprocessing
-        pool = Pool(processes=num_processes)
         print(f"\tstarting wave {i + 1}/{groups}")
         result = pool.starmap_async(begin, tickers_to_run[:num_processes])
         tickers_to_run = tickers_to_run[num_processes:]
@@ -203,7 +203,8 @@ def predict_stock_prices(run, cur_pars, lines=None):
         results = result.get()
         stock_predictions.extend(results)
         # print(f"delay: {time.time() - start_time}")
-        pool.close()
+
+    pool.close()
 
     # news_thread.join()
 
@@ -297,7 +298,7 @@ if __name__ == '__main__':
     warnings.filterwarnings(action='ignore', category=UserWarning)
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # tensorflow cpu not found error
 
-    for i in range(30):
+    for i in range(16):
         print(f"STARTING {i}")
         dateTimeObj = datetime.now()
         custom_id = 'EXP-' + dateTimeObj.strftime("%d-%b-%Y-(%H:%M:%S)")
@@ -318,7 +319,7 @@ if __name__ == '__main__':
             'learning_rate': 0.0268435,  # tested
             'beta_1': 0.9,
             'beta_2': 0.999,
-            'epsilon': 1e-10 * (2**i),
+            'epsilon': 0.0000008192,
             'days_back': 70
         }
 
