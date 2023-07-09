@@ -7,6 +7,7 @@ import Trading
 from datetime import datetime, date
 from threading import Thread, Lock
 import News
+from regression_live import Regression
 
 
 def begin(ticker: str, id: str, NAT, AVT, test=False):
@@ -26,12 +27,21 @@ def begin(ticker: str, id: str, NAT, AVT, test=False):
         capture_stderr=False,
         capture_hardware_metrics=False
     )
+    cur_pars = {
+        'cur_epochs': 50,
+        'window_size': 50,
+        'learning_rate': 0.0268435,  # tested
+        'beta_1': 0.9,
+        'beta_2': 0.999,
+        'epsilon': 0.0000008192,
+        'days_back': 70
+    }
     if not test:
         dataset_size = 400
         data = get_data_to_file(ticker, AVT, dataset_size)
     else:
         data = pandas.read_csv(f"Data/{ticker}_data.csv")
-    stock = IndividualLSTM(ticker, data, run)
+    stock = IndividualLSTM(ticker, data, run, cur_pars)
     # print(f"{ticker} complete")
     return ticker, stock.open, stock.close
 
@@ -409,9 +419,10 @@ class Manager:
         :return: list[tuples] with stock data (ticker: str, predicted_price: float, change_price: float, change_percent: float)
         """
         blacklist = ['AMZN', 'GOOG', 'NVDA', 'TSLA', 'NKE']
-        # max to run at once is 20 because of pandas figure limits
-        with open('tickers.txt', 'r') as f:
-            lines = f.readlines()
+        # # max to run at once is 20 because of pandas figure limits
+        # with open('tickers.txt', 'r') as f:
+        #     lines = f.readlines()
+        lines = Regression(self.run).order_stocks
         listOfTickers = [(line.strip(), self.custom_id, self.NEPTUNE_API_TOKEN, self.ALPHA_VANTAGE_TOKEN) for line in lines if
                          line.strip() not in blacklist]
 
