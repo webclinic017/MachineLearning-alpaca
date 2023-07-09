@@ -163,7 +163,7 @@ class Regression:
                 break
 
         pos_sorted_preds = sorted_preds[:ind_pos_from_mean]
-        order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 1 / 2)]
+        order_stocks = pos_sorted_preds[:int(len(pos_sorted_preds) * 3 / 4)]
         self.order_stocks = [i[0] for i in order_stocks]
         print(f"order_stocks: {self.order_stocks}")
         run["GRU/order_stocks"].log(self.order_stocks)
