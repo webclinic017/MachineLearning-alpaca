@@ -276,14 +276,8 @@ class Manager:
         buy_close = [i for i in self.orders_for_day.values() if not i[2]]
         print(f"buy close: {buy_close}")
 
-        if buy_open:
-            self.run["orders/buy_open"].log(buy_open)
-        else:
-            self.run["orders/buy_open"].log(f"No open orders")
-        if buy_close:
-            self.run["orders/buy_close"].log(buy_close)
-        else:
-            self.run["orders/buy_close"].log(f"No close orders")
+        self.run["orders/buy_open"].log(buy_open if buy_open else "No open orders")
+        self.run["orders/buy_close"].log(buy_close if buy_close else "No close orders")
 
         sell_open = [i for i in self.sell_for_day.values() if i[2]] if self.sell_for_day is not None else []
         print(f"sell open: {sell_open}")
@@ -522,7 +516,7 @@ class Manager:
         while current_time < trader.hours[1]:
             for ticker, order in orders.items():
                 self.run["retries"].log(f"checking status of order: {order[3]} for stock: {ticker}")
-                status = Trading.check_order(order[3])
+                status = Trading.check_alpaca_order(order[3])
                 if status == 1:
                     print(f"order for stock: {ticker} marked as completed")
                     self.run["retries"].log(f"order for stock: {ticker} marked as completed")

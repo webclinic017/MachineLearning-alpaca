@@ -23,7 +23,7 @@ historical_client = StockHistoricalDataClient(alpaca_key, alpaca_secret)
 
 
 def get_alpaca_account_info():
-    return trading_client.get_account()
+    return trading_client.get_account().dict()
 
 
 def get_alpaca_postitions():
@@ -39,7 +39,7 @@ def buy_alpaca(ticker: str, price: float):
     )
     market_order = trading_client.submit_order(market_order_data)
 
-    return market_order
+    return market_order.dict()
 
 
 def buy_alpaca_by_quantity(ticker: str, quantity: float):
@@ -51,7 +51,7 @@ def buy_alpaca_by_quantity(ticker: str, quantity: float):
     )
     market_order = trading_client.submit_order(market_order_data)
 
-    return market_order
+    return market_order.dict()
 
 
 def sell_alpaca_by_quantity(ticker: str, quantity: float = None):
@@ -65,13 +65,13 @@ def sell_alpaca_by_quantity(ticker: str, quantity: float = None):
     )
     market_order = trading_client.submit_order(market_order_data)
 
-    return market_order
+    return market_order.dict()
 
 
 def alpaca_sell_all_stocks():
     details = []
     for pos in trading_client.get_all_positions():
-        details.append(sell_alpaca_by_quantity(pos.symbol, quantity=float(pos.qty)))
+        details.append(sell_alpaca_by_quantity(pos.symbol, quantity=float(pos.qty)).dict())
         time.sleep(2)
 
     return details
