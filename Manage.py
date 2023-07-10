@@ -41,6 +41,8 @@ def begin(ticker: str, id: str, NAT, AVT, test=False):
         data = get_data_to_file(ticker, AVT, dataset_size)
     else:
         data = pandas.read_csv(f"Data/{ticker}_data.csv")
+    # dataset_size = 400
+    # data = Trading.alpaca_get_historicals(ticker, dataset_size)
     stock = IndividualLSTM(ticker, data, run, cur_pars)
     # print(f"{ticker} complete")
     return ticker, stock.open, stock.close

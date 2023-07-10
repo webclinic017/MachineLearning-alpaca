@@ -93,10 +93,14 @@ def check_alpaca_order(order_id):
 def alpaca_get_historicals(tickers: Union[str, list], start: int = 365):
     if isinstance(tickers, str):
         tickers = [tickers]
-    s = datetime.utcnow() - timedelta(days=start)
+    big_start = 2 * start
+    s = datetime.utcnow() - timedelta(days=big_start)
     timeframe = TimeFrame.Day
     req = StockBarsRequest(symbol_or_symbols=tickers, timeframe=timeframe, start=s)
-    return historical_client.get_stock_bars(req)
+    data = historical_client.get_stock_bars(req).dict()
+    for k in data.keys():
+        data[k] = data[k][len(data[k])-start:]
+    return data
 
 
 def get_user_info():
