@@ -120,6 +120,7 @@ def order_distribution(money_for_close, close_stocks_to_invest, percent_close, t
         orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
 
         return remaining_money
+    return 0
 
 
 class Manager:
