@@ -100,29 +100,6 @@ class newsThread(Thread):
         self.sentiment = get_news_sentiment()
 
 
-def order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest):
-    floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
-    remaining_money = money_for_close
-    for i in range(len(close_stocks_to_invest)):
-        amount = round(money_for_close * (close_stocks_to_invest[i][1] / percent_close) + floating_additions, 5)
-        if amount / total_money > 0.1:
-            new_amount = total_money * 0.1
-            floating_additions += (amount - new_amount) / (len(close_stocks_to_invest) - i)
-            amount = new_amount
-        if amount < 1.00:
-            amount = 1.00
-
-        if amount > remaining_money:
-            break
-
-        remaining_money -= amount
-
-        orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
-
-        return remaining_money
-    return 0
-
-
 class Manager:
 
     def __init__(self, NAT, AVT):
@@ -399,9 +376,41 @@ class Manager:
         percent_open = sum(i[1] for i in open_stocks_to_invest)
         percent_close = sum(i[1] for i in close_stocks_to_invest)
 
-        money_for_close += order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest)
+        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
+        remaining_money = money_for_open
+        for i in range(len(open_stocks_to_invest)):
+            amount = round(money_for_open * (open_stocks_to_invest[i][1] / percent_open) + floating_additions, 5)
+            if amount / total_money > 0.1:
+                new_amount = total_money * 0.1
+                floating_additions += (amount - new_amount) / (len(open_stocks_to_invest) - i)
+                amount = new_amount
+            if amount < 1.00:
+                amount = 1.00
 
-        order_distribution(money_for_close, close_stocks_to_invest, percent_close, total_money, orders, stocks_to_invest)
+            if amount > remaining_money:
+                break
+
+            remaining_money -= amount
+
+            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
+
+        money_for_close += remaining_money
+
+        floating_additions = 0  # max of my equity is 10%, any more gets divided among remaining investments
+        remaining_money = money_for_close
+        for i in range(len(close_stocks_to_invest)):
+            amount = round(money_for_close * (close_stocks_to_invest[i][1] / percent_close) + floating_additions, 5)
+            if amount / total_money > 0.1:
+                new_amount = total_money * 0.1
+                floating_additions += (amount - new_amount) / (len(close_stocks_to_invest) - i)
+                amount = new_amount
+            if amount < 1.00:
+                amount = 1.00
+
+            if amount > remaining_money:
+                break
+
+            remaining_money -= amount
 
         print(f"Orders: {orders}")
 
