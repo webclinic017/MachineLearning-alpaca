@@ -147,13 +147,13 @@ class Regression:
 
         model = self.make_model(test=False)
         predictions = self.predict_from_model(model, test=False)
-        self.run[f"GRU/Predictions"].log(predictions)
+        self.run[f"GRU/Predictions"].log(str(predictions))
 
         for k, v in predictions.items():
             run[f"Predictions/{k}/GRU"].log(v)
 
         sorted_preds = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
-        self.run[f"GRU/Sorted_Predictions"].log(sorted_preds)
+        self.run[f"GRU/Sorted_Predictions"].log(str(sorted_preds))
         ind_pos_from_mean = 0
 
         middle = np.mean(list(predictions.values()))

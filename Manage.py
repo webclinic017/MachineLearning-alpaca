@@ -40,6 +40,11 @@ def begin(ticker: str, id: str, NAT, AVT, test=False):
         dataset_size = 400
         data = get_data_to_file(ticker, AVT, dataset_size)
     else:
+        with open(f"Data/{ticker}_data.csv", 'r') as f:
+            check = f.readline()
+        if '{' in check:
+            print(f"ERROR in getting for predicting stock: {ticker}, returning None for prediction")
+            return None
         data = pandas.read_csv(f"Data/{ticker}_data.csv")
     # dataset_size = 400
     # data = Trading.alpaca_get_historicals(ticker, dataset_size)
@@ -469,6 +474,8 @@ class Manager:
             # print(f"delay: {time.time() - start_time}")
             pool.close()
 
+        while None in stock_predictions:
+            stock_predictions.remove(None)
         # logs the data to neptune
         self.run[f"all_prediction_data/Data"].log(stock_predictions)
 
