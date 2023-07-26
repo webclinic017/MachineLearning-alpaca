@@ -167,9 +167,9 @@ class IndividualLSTM:
         # predict 2nd day out
         # add prediction to dataframe to predict the next day
         if data_var == 'close':
-            self.flippedData.loc[len(self.flippedData.index)] = [0, 0, 0, 0, predicted_price, 0, 0, 0, 1.0]
+            self.flippedData.loc[len(self.flippedData.index)] = [0, 0, 0, 0, predicted_price, 0]
         else:
-            self.flippedData.loc[len(self.flippedData.index)] = [0, predicted_price, 0, 0, 0, 0, 0, 0, 1.0]
+            self.flippedData.loc[len(self.flippedData.index)] = [0, predicted_price, 0, 0, 0, 0]
         x_test = preprocess_testdata(data=self.flippedData, scaler=scaler, window_size=window_size, data_var=data_var)
         predicted_price_array = model.predict(x_test, verbose=0)
         predicted_price_array = scaler.inverse_transform(predicted_price_array)
