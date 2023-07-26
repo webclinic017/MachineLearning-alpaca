@@ -61,7 +61,7 @@ def get_data(ticker: str, AVT, dataset_size: int):
     :param dataset_size: int, # of days of data to keep
     :return: DataFrame of csv data
     """
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
     try:
         return pandas.read_csv(url)[:dataset_size]
     except Exception as e:
@@ -77,7 +77,7 @@ def get_data_to_file(ticker: str, AVT, dataset_size: int):
     :param dataset_size: int, # of days of data to keep
     :return: DataFrame of csv data
     """
-    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={ticker}&apikey={AVT}&datatype=csv&outputsize=full"
 
     try:
         df = pandas.read_csv(url)[:dataset_size]
