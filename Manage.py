@@ -240,12 +240,12 @@ class Manager:
             stock_price = float(Trading.get_stocks_current_price(stock)[0])
             net_amount = float(buy_tuple[1]) - (float(sell_tuple[1]) * stock_price)
             if net_amount > 0:
-                new_tuple = (stock, net_amount, buy_tuple[2], buy_tuple[3])
+                new_tuple = (stock, round(net_amount, 2), buy_tuple[2], buy_tuple[3])
                 self.orders_for_day[stock] = new_tuple
                 del self.sell_for_day[stock]
             elif net_amount < 0:
                 sell_quantity = net_amount*-1/stock_price
-                new_tuple = (stock, sell_quantity, sell_tuple[2])
+                new_tuple = (stock, round(sell_quantity, 2), sell_tuple[2])
                 self.sell_for_day[stock] = new_tuple
                 del self.orders_for_day[stock]
                 tomorrow_sell_tuple = (stock, round(float(sell_tuple[1])-sell_quantity, 5), buy_tuple[3])
@@ -259,8 +259,8 @@ class Manager:
         buy_close = [i for i in self.orders_for_day.values() if not i[2]]
         print(f"buy close: {buy_close}")
 
-        self.run["orders/buy_open"].log(buy_open if buy_open else "No open orders")
-        self.run["orders/buy_close"].log(buy_close if buy_close else "No close orders")
+        self.run["orders/buy_open"].log(str(buy_open) if buy_open else "No open orders")
+        self.run["orders/buy_close"].log(str(buy_close) if buy_close else "No close orders")
 
         sell_open = [i for i in self.sell_for_day.values() if i[2]] if self.sell_for_day is not None else []
         print(f"sell open: {sell_open}")
