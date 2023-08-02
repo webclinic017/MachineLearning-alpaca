@@ -397,7 +397,7 @@ class Manager:
 
             remaining_money -= amount
 
-            orders.append((stocks_to_invest[i][0], amount, stocks_to_invest[i][2], stocks_to_invest[i][3]))
+            orders.append((stocks_to_invest[i][0], round(amount, 2), stocks_to_invest[i][2], stocks_to_invest[i][3]))
 
         money_for_close += remaining_money
 
