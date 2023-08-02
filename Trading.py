@@ -31,6 +31,7 @@ def get_alpaca_postitions():
 
 
 def buy_alpaca(ticker: str, price: float):
+    price = round(price, 2)
     market_order_data = MarketOrderRequest(
         symbol=ticker,
         notional=price,
