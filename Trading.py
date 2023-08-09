@@ -72,7 +72,7 @@ def sell_alpaca_by_quantity(ticker: str, quantity: float = None):
 def alpaca_sell_all_stocks():
     details = []
     for pos in trading_client.get_all_positions():
-        details.append(sell_alpaca_by_quantity(pos.symbol, quantity=float(pos.qty)).dict())
+        details.append(sell_alpaca_by_quantity(pos.symbol, quantity=float(pos.qty)))
         time.sleep(2)
 
     return details
